@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bootloader = "0.10"
+bootloader = "0.9.8"
 
 [profile.dev]
 panic = "abort"
