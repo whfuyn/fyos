@@ -113,7 +113,7 @@ impl From<VgaChar> for [u8; 2] {
 
 const VGA_BUFFER_ROWS: usize = 25;
 const VGA_BUFFER_COLUMNS: usize = 80;
-const VGA_BUFFER_ADDR: *mut u8 = 0xb800 as *mut u8;
+const VGA_BUFFER_ADDR: *mut u8 = 0xb8000 as *mut u8;
 
 const VGA_COL_OFFSET: usize = 2;
 const VGA_ROW_OFFSET: usize = VGA_BUFFER_COLUMNS * VGA_COL_OFFSET;
