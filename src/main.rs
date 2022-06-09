@@ -7,26 +7,40 @@ mod konsole;
 mod sync;
 mod vga_buffer;
 
-use core::panic::PanicInfo;
-// use vga_buffer::VgaBuffer;
-// use konsole::Konsole;
-// use konsole::kprintln;
-
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {
         core::hint::spin_loop();
     }
 }
 
-static HELLO: &str = "Hello World!\n";
-static MORNING: &str = "Morning! Nice day for fishing ain't it!\n";
+static HELLO: &str = "Hello World!";
+static MORNING: &str = "Morning! Nice day for fishing ain't it!";
+
+#[derive(Debug)]
+enum Error {
+    FmtError(core::fmt::Error),
+}
+
+impl From<core::fmt::Error> for Error {
+    fn from(e: core::fmt::Error) -> Self {
+        Self::FmtError(e)
+    }
+}
+
+fn main() -> Result<(), Error> {
+    kprintln!("{}\n", HELLO)?;
+    kprintln!("{}\n", MORNING)?;
+    kprint!("{}", MORNING)?;
+    Ok(())
+}
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    kprintln!("{}", HELLO).unwrap();
+    main().unwrap();
+
     loop {
-        kprintln!("{}", MORNING).unwrap();
+        core::hint::spin_loop();
     }
 }
 

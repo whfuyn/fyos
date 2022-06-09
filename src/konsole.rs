@@ -8,18 +8,16 @@ pub static KONSOLE: SpinLock<Konsole> = SpinLock::new(Konsole::new());
 macro_rules! kprint {
     ($($arg:tt)*) => {{
         use ::core::fmt::Write;
-        let konsole = $crate::konsole::KONSOLE.lock();
-        write!(&mut konsole, "{}", $($arg)*)
+        let mut konsole = $crate::konsole::KONSOLE.lock();
+        write!(&mut konsole, "{}", core::format_args!($($arg)*))
     }};
 }
 
 #[macro_export]
 macro_rules! kprintln {
-    () => {{
-        use ::core::fmt::Write;
-        let mut konsole = $crate::konsole::KONSOLE.lock();
-        write!(&mut konsole, "\n")
-    }};
+    () => {
+        kprint("\n")
+    };
     ($($arg:tt)*) => {{
         use ::core::fmt::Write;
         let mut konsole = $crate::konsole::KONSOLE.lock();
