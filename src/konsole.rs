@@ -1,14 +1,41 @@
+use crate::sync::SpinLock;
 use crate::vga_buffer::*;
+use core::fmt::Write;
 
-pub struct Console {
+pub static KONSOLE: SpinLock<Konsole> = SpinLock::new(Konsole::new());
+
+#[macro_export]
+macro_rules! kprint {
+    ($($arg:tt)*) => {{
+        use ::core::fmt::Write;
+        let konsole = $crate::konsole::KONSOLE.lock();
+        write!(&mut konsole, "{}", $($arg)*)
+    }};
+}
+
+#[macro_export]
+macro_rules! kprintln {
+    () => {{
+        use ::core::fmt::Write;
+        let mut konsole = $crate::konsole::KONSOLE.lock();
+        write!(&mut konsole, "\n")
+    }};
+    ($($arg:tt)*) => {{
+        use ::core::fmt::Write;
+        let mut konsole = $crate::konsole::KONSOLE.lock();
+        write!(&mut konsole, "{}", core::format_args_nl!($($arg)*))
+    }};
+}
+
+pub struct Konsole {
     vga_buffer: VgaBuffer,
     // Cursor
     row: usize,
     col: usize,
 }
 
-impl Console {
-    pub fn new() -> Self {
+impl Konsole {
+    pub const fn new() -> Self {
         Self {
             vga_buffer: VgaBuffer::new(),
             row: 0,
@@ -70,5 +97,15 @@ impl Console {
 
         // self.row remains unchanged.
         self.col = 0;
+    }
+}
+
+impl Write for Konsole {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        if !s.is_ascii() {
+            return Err(core::fmt::Error);
+        }
+        self.puts(s.as_bytes());
+        Ok(())
     }
 }

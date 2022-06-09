@@ -1,28 +1,32 @@
 #![no_std]
 #![no_main]
 #![deny(unsafe_op_in_unsafe_fn)]
+#![feature(format_args_nl)]
 
-mod console;
+mod konsole;
+mod sync;
 mod vga_buffer;
 
 use core::panic::PanicInfo;
 // use vga_buffer::VgaBuffer;
-use console::Console;
+// use konsole::Konsole;
+// use konsole::kprintln;
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+    loop {
+        core::hint::spin_loop();
+    }
 }
 
-static HELLO: &[u8] = b"Hello World!\n";
-static MORNING: &[u8] = b"Morning! Nice day for fishing ain't it! Hu ha!\n";
+static HELLO: &str = "Hello World!\n";
+static MORNING: &str = "Morning! Nice day for fishing ain't it!\n";
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    let mut console = Console::new();
-    console.puts(HELLO);
+    kprintln!("{}", HELLO).unwrap();
     loop {
-        console.puts(MORNING);
+        kprintln!("{}", MORNING).unwrap();
     }
 }
 
