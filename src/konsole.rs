@@ -83,6 +83,7 @@ impl Konsole {
     fn next_line(&mut self) {
         if self.row + 1 < VGA_BUFFER_ROWS {
             self.row += 1;
+            self.col = 0;
             return;
         }
         // Move all the lines up.
