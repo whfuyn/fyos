@@ -1,27 +1,29 @@
 #![no_std]
 #![no_main]
+#![deny(unsafe_op_in_unsafe_fn)]
 
+mod console;
 mod vga_buffer;
 
 use core::panic::PanicInfo;
-use vga_buffer::VgaBuffer;
+// use vga_buffer::VgaBuffer;
+use console::Console;
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
-static HELLO: &[u8] = b"Hello World!";
+static HELLO: &[u8] = b"Hello World!\n";
+static MORNING: &[u8] = b"Morning! Nice day for fishing ain't it! Hu ha!\n";
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    let mut vga_buffer = VgaBuffer::new();
-    for (j, &ch) in HELLO.iter().enumerate() {
-        vga_buffer.put_char(1, j, ch.into());
+    let mut console = Console::new();
+    console.puts(HELLO);
+    loop {
+        console.puts(MORNING);
     }
-    vga_buffer.sync();
-
-    loop {}
 }
 
 // bootloader 0.10 doesn't work.

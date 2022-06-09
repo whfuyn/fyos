@@ -48,9 +48,16 @@ mod color {
     }
 
     impl Color {
-        #[allow(non_upper_case_globals)]
+        #![allow(non_upper_case_globals)]
+
         pub const White: Self = Self {
             fg: ForegroundColor::White,
+            bg: BackgroundColor::Black,
+            blink: false,
+        };
+
+        pub const Black: Self = Self {
+            fg: ForegroundColor::Black,
             bg: BackgroundColor::Black,
             blink: false,
         };
@@ -74,7 +81,7 @@ mod color {
     }
 }
 
-use color::*;
+pub use color::*;
 
 #[derive(Clone, Copy)]
 pub struct VgaChar {
@@ -84,15 +91,21 @@ pub struct VgaChar {
 
 impl VgaChar {
     const fn new() -> Self {
-        let color = Color {
-            fg: ForegroundColor::Black,
-            bg: BackgroundColor::Black,
-            blink: false,
-        };
         Self {
             code_point: b' ',
-            color,
+            color: Color::Black,
         }
+    }
+
+    #[inline]
+    pub fn code_point(&self) -> u8 {
+        self.code_point
+    }
+}
+
+impl Default for VgaChar {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -111,8 +124,8 @@ impl From<VgaChar> for [u8; 2] {
     }
 }
 
-const VGA_BUFFER_ROWS: usize = 25;
-const VGA_BUFFER_COLUMNS: usize = 80;
+pub const VGA_BUFFER_ROWS: usize = 25;
+pub const VGA_BUFFER_COLUMNS: usize = 80;
 const VGA_BUFFER_ADDR: *mut u8 = 0xb8000 as *mut u8;
 
 const VGA_COL_OFFSET: usize = 2;
@@ -120,9 +133,11 @@ const VGA_ROW_OFFSET: usize = VGA_BUFFER_COLUMNS * VGA_COL_OFFSET;
 
 type VgaRow = [VgaChar; VGA_BUFFER_COLUMNS];
 
+// Design question:
+// Should I use an internal buffer or just write to the vga memory?
 #[repr(C)]
 pub struct VgaBuffer {
-    buffer: [VgaRow; VGA_BUFFER_ROWS],
+    pub buffer: [VgaRow; VGA_BUFFER_ROWS],
 }
 
 impl VgaBuffer {
@@ -131,36 +146,45 @@ impl VgaBuffer {
         Self { buffer }
     }
 
-    fn write_vga(rows: usize, cols: usize, ch: VgaChar) {
-        assert!(rows < VGA_BUFFER_ROWS);
-        assert!(cols < VGA_BUFFER_COLUMNS);
-
-        let vga_char: [u8; 2] = ch.into();
+    /// Write a vga char to the vga's buffer.
+    fn write_vga_char<C: Into<VgaChar>>(rows: usize, cols: usize, ch: C) {
+        let vga_char: [u8; 2] = ch.into().into();
         let offset = rows * VGA_ROW_OFFSET + cols * VGA_COL_OFFSET;
 
+        assert!(rows < VGA_BUFFER_ROWS);
+        assert!(cols < VGA_BUFFER_COLUMNS);
+        // SAFETY:
+        // The addr we are writing to is indeed inside the vga's buffer,
+        // which we have checked above.
         unsafe {
-            VGA_BUFFER_ADDR
-                .offset(offset as isize)
-                .write_volatile(vga_char[0]);
-            VGA_BUFFER_ADDR
-                .offset((offset + 1) as isize)
-                .write_volatile(vga_char[1]);
+            VGA_BUFFER_ADDR.add(offset).write_volatile(vga_char[0]);
+            VGA_BUFFER_ADDR.add(offset + 1).write_volatile(vga_char[1]);
         }
     }
 
-    pub fn put_char(&mut self, rows: usize, cols: usize, ch: VgaChar) {
-        assert!(rows < VGA_BUFFER_ROWS);
-        assert!(cols < VGA_BUFFER_COLUMNS);
-
-        self.buffer[rows][cols] = ch;
-    }
-
-    /// Write buffer to vga.
+    /// Write the whole buffer to vga.
     pub fn sync(&self) {
         for (i, row) in self.buffer.iter().enumerate() {
             for (j, ch) in row.iter().enumerate() {
-                Self::write_vga(i, j, *ch);
+                Self::write_vga_char(i, j, *ch);
             }
         }
     }
 }
+
+// use core::ops::Index;
+// use core::ops::IndexMut;
+
+// impl Index<usize> for VgaBuffer {
+//     type Output = VgaRow;
+
+//     fn index(&self, index: usize) -> &Self::Output {
+//         &self.buffer[index]
+//     }
+// }
+
+// impl IndexMut<usize> for VgaBuffer {
+//     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+//         &mut self.buffer[index]
+//     }
+// }
