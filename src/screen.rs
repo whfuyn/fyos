@@ -1,5 +1,3 @@
-use core::fmt::Write;
-
 use crate::lazy_static::LazyStatic;
 use crate::spinlock::SpinLock;
 
@@ -121,7 +119,7 @@ pub struct Screen {
 }
 
 impl Screen {
-    pub fn new() -> Self {
+    fn new() -> Self {
         // SAFETY:
         // This is the vga buffer and we are the only user.
         let buffer = unsafe { &mut *(VGA_BUFFER_ADDR as *mut VgaBuffer) };
@@ -185,11 +183,11 @@ impl Screen {
         // Move all rows up.
         // TODO: add the discarded line to history.
         for r in 0..(VGA_BUFFER_ROWS - 1) {
-            let row = self.buffer.read_row(r);
-            self.buffer.write_row(r, row);
+            let lower_row = self.buffer.read_row(r + 1);
+            self.buffer.write_row(r, lower_row);
         }
         // Clear the last row.
-        self.clear_row(VGA_BUFFER_ROWS);
+        self.clear_row(VGA_BUFFER_ROWS - 1);
 
         // self.row remains unchanged.
         self.col = 0;
@@ -204,7 +202,7 @@ impl Screen {
     }
 }
 
-impl Write for Screen {
+impl core::fmt::Write for Screen {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.puts(s);
         Ok(())
@@ -217,20 +215,21 @@ pub static SCREEN: LazyStatic<SpinLock<Screen>, fn() -> SpinLock<Screen>> =
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {{
-        use ::core::fmt::Write;
-        let mut screen = $crate::screen::SCREEN.lock();
-        write!(&mut screen, "{}", ::core::format_args!($($arg)*))
+        $crate::screen::_print(::core::format_args!($($arg)*));
     }};
 }
 
 #[macro_export]
 macro_rules! println {
-    () => {
-        print("\n")
-    };
-    ($($arg:tt)*) => {{
-        use ::core::fmt::Write;
-        let mut screen = $crate::screen::SCREEN.lock();
-        write!(&mut screen, "{}", ::core::format_args_nl!($($arg)*))
+    () => {{
+        $crate::screen::print(::core::format_args("\n"));
     }};
+    ($($arg:tt)*) => {{
+        $crate::screen::_print(::core::format_args_nl!($($arg)*));
+    }};
+}
+
+pub fn _print(args: core::fmt::Arguments) {
+    use core::fmt::Write;
+    SCREEN.lock().write_fmt(args).unwrap();
 }
