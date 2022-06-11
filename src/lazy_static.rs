@@ -37,7 +37,7 @@ impl<T: 'static, F: FnOnce() -> T> Drop for LazyStatic<T, F> {
         match self.init_state.load(Ordering::Relaxed) {
             InitStage::Uninit | InitStage::Initing => (),
             // SAFETY:
-            // We have unique access to self.value on drop, and
+            // - We have unique access to self.value on drop, and
             // that value has been inited.
             InitStage::Inited => unsafe {
                 (*self.value.get()).assume_init_drop();

@@ -17,27 +17,16 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 static HELLO: &str = "Hello World!";
 static MORNING: &str = "Morning! Nice day for fishing ain't it!";
 
-#[derive(Debug)]
-enum Error {
-    FmtError(core::fmt::Error),
-}
-
-impl From<core::fmt::Error> for Error {
-    fn from(e: core::fmt::Error) -> Self {
-        Self::FmtError(e)
+fn main() {
+    println!("{}\n", HELLO);
+    for i in 1.. {
+        println!("{} - {}", MORNING, i);
     }
-}
-
-fn main() -> Result<(), Error> {
-    println!("{}\n", HELLO)?;
-    println!("{}\n", MORNING)?;
-    print!("{}", MORNING)?;
-    Ok(())
 }
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    main().unwrap();
+    main();
 
     loop {
         core::hint::spin_loop();
