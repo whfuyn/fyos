@@ -46,7 +46,7 @@ struct ColorCode(u8);
 
 impl ColorCode {
     pub const fn new(foreground: Color, background: Color) -> Self {
-        Self(background as u8 | (foreground as u8) << 4)
+        Self(foreground as u8 | (background as u8) << 4)
     }
 
     #[allow(dead_code)]
@@ -160,6 +160,7 @@ impl Screen {
                 }
                 let ch = ScreenChar::new(byte, self.color_code);
                 self.buffer.write_char(self.row, self.col, ch);
+                self.col += 1;
             }
         };
     }
