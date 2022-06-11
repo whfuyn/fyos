@@ -5,7 +5,7 @@ use core::fmt::Write;
 pub static KONSOLE: SpinLock<Konsole> = SpinLock::new(Konsole::new());
 
 #[macro_export]
-macro_rules! kprint {
+macro_rules! print {
     ($($arg:tt)*) => {{
         use ::core::fmt::Write;
         let mut konsole = $crate::konsole::KONSOLE.lock();
@@ -14,9 +14,9 @@ macro_rules! kprint {
 }
 
 #[macro_export]
-macro_rules! kprintln {
+macro_rules! println {
     () => {
-        kprint("\n")
+        print("\n")
     };
     ($($arg:tt)*) => {{
         use ::core::fmt::Write;

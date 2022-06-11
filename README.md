@@ -14,3 +14,7 @@ cargo run
 
 This will run the built kernel in `qemu`.
 
+## Features
+
+- [x] scrolling console
+

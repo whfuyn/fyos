@@ -29,9 +29,9 @@ impl From<core::fmt::Error> for Error {
 }
 
 fn main() -> Result<(), Error> {
-    kprintln!("{}\n", HELLO)?;
-    kprintln!("{}\n", MORNING)?;
-    kprint!("{}", MORNING)?;
+    println!("{}\n", HELLO)?;
+    println!("{}\n", MORNING)?;
+    print!("{}", MORNING)?;
     Ok(())
 }
 

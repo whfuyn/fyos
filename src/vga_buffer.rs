@@ -8,14 +8,14 @@ mod color {
     #[repr(u8)]
     #[derive(Clone, Copy)]
     pub enum BackgroundColor {
-        Black = 0x0,
-        Blue = 0x1,
-        Green = 0x2,
-        Cyan = 0x3,
-        Red = 0x4,
-        Magenta = 0x5,
-        Brown = 0x6,
-        LightGray = 0x7,
+        Black = 0,
+        Blue = 1,
+        Green = 2,
+        Cyan = 3,
+        Red = 4,
+        Magenta = 5,
+        Brown = 6,
+        LightGray = 7,
     }
 
     #[repr(u8)]
@@ -44,6 +44,8 @@ mod color {
     pub struct Color {
         pub fg: ForegroundColor,
         pub bg: BackgroundColor,
+        // This may behave like the bright bit.
+        // See https://en.wikipedia.org/wiki/VGA_text_mode#endnote_text_buffer_1
         pub blink: bool,
     }
 
@@ -58,6 +60,12 @@ mod color {
 
         pub const Black: Self = Self {
             fg: ForegroundColor::Black,
+            bg: BackgroundColor::Black,
+            blink: false,
+        };
+
+        pub const Yellow: Self = Self {
+            fg: ForegroundColor::Yellow,
             bg: BackgroundColor::Black,
             blink: false,
         };
@@ -90,10 +98,10 @@ pub struct VgaChar {
 }
 
 impl VgaChar {
-    const fn new() -> Self {
+    pub const fn new(code_point: u8, color: Color) -> Self {
         Self {
-            code_point: b' ',
-            color: Color::Black,
+            code_point,
+            color,
         }
     }
 
@@ -101,11 +109,19 @@ impl VgaChar {
     pub fn code_point(&self) -> u8 {
         self.code_point
     }
+
+    pub fn blink(mut self) -> Self {
+        self.color.blink = true;
+        self
+    }
 }
 
 impl Default for VgaChar {
     fn default() -> Self {
-        Self::new()
+        Self {
+            code_point: b' ',
+            color: Color::Black,
+        }
     }
 }
 
@@ -135,18 +151,23 @@ type VgaRow = [VgaChar; VGA_BUFFER_COLUMNS];
 
 // Design question:
 // Should I use an internal buffer or just write to the vga memory?
-#[repr(C)]
 pub struct VgaBuffer {
     pub buffer: [VgaRow; VGA_BUFFER_ROWS],
 }
 
 impl VgaBuffer {
     pub const fn new() -> Self {
-        let buffer = [[VgaChar::new(); VGA_BUFFER_COLUMNS]; VGA_BUFFER_ROWS];
+        let blank = VgaChar {
+            code_point: b' ',
+            color: Color::Yellow,
+        };
+        let buffer = [[blank; VGA_BUFFER_COLUMNS]; VGA_BUFFER_ROWS];
         Self { buffer }
     }
 
     /// Write a vga char to the vga's buffer.
+    /// # Panics
+    /// Panics if the row and col goes outside of the screen.
     fn write_vga_char<C: Into<VgaChar>>(rows: usize, cols: usize, ch: C) {
         let vga_char: [u8; 2] = ch.into().into();
         let offset = rows * VGA_ROW_OFFSET + cols * VGA_COL_OFFSET;
@@ -163,7 +184,7 @@ impl VgaBuffer {
     }
 
     /// Write the whole buffer to vga.
-    pub fn sync(&self) {
+    pub fn flush(&self) {
         for (i, row) in self.buffer.iter().enumerate() {
             for (j, ch) in row.iter().enumerate() {
                 Self::write_vga_char(i, j, *ch);
@@ -171,20 +192,3 @@ impl VgaBuffer {
         }
     }
 }
-
-// use core::ops::Index;
-// use core::ops::IndexMut;
-
-// impl Index<usize> for VgaBuffer {
-//     type Output = VgaRow;
-
-//     fn index(&self, index: usize) -> &Self::Output {
-//         &self.buffer[index]
-//     }
-// }
-
-// impl IndexMut<usize> for VgaBuffer {
-//     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-//         &mut self.buffer[index]
-//     }
-// }
