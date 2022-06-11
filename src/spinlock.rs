@@ -8,7 +8,7 @@ use core::sync::atomic::Ordering;
 // We actually don't need this since our current kernel
 // is single-threaded.
 pub struct SpinLock<T: ?Sized> {
-    locked: AtomicBool,
+    is_locked: AtomicBool,
     value: UnsafeCell<T>,
 }
 
@@ -17,7 +17,7 @@ pub struct SpinLockGuard<'a, T: ?Sized>(&'a SpinLock<T>);
 impl<T> SpinLock<T> {
     pub const fn new(value: T) -> Self {
         Self {
-            locked: AtomicBool::new(false),
+            is_locked: AtomicBool::new(false),
             value: UnsafeCell::new(value),
         }
     }
@@ -25,8 +25,9 @@ impl<T> SpinLock<T> {
 
 impl<T: ?Sized> SpinLock<T> {
     pub fn lock(&self) -> SpinLockGuard<T> {
+        // TODO: Not quite sure about the Ordering, check these later.
         while self
-            .locked
+            .is_locked
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Acquire)
             .is_err()
         {
@@ -41,8 +42,8 @@ impl<'a, T: ?Sized> Drop for SpinLockGuard<'a, T> {
     fn drop(&mut self) {
         assert!(self
             .0
-            .locked
-            .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
+            .is_locked
+            .compare_exchange(true, false, Ordering::Acquire, Ordering::Acquire)
             .is_ok())
     }
 }

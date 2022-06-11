@@ -4,26 +4,26 @@ use core::fmt::Write;
 
 pub static KONSOLE: SpinLock<Konsole> = SpinLock::new(Konsole::new());
 
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => {{
-        use ::core::fmt::Write;
-        let mut konsole = $crate::konsole::KONSOLE.lock();
-        write!(&mut konsole, "{}", core::format_args!($($arg)*))
-    }};
-}
+// #[macro_export]
+// macro_rules! print {
+//     ($($arg:tt)*) => {{
+//         use ::core::fmt::Write;
+//         let mut konsole = $crate::konsole::KONSOLE.lock();
+//         write!(&mut konsole, "{}", core::format_args!($($arg)*))
+//     }};
+// }
 
-#[macro_export]
-macro_rules! println {
-    () => {
-        print("\n")
-    };
-    ($($arg:tt)*) => {{
-        use ::core::fmt::Write;
-        let mut konsole = $crate::konsole::KONSOLE.lock();
-        write!(&mut konsole, "{}", core::format_args_nl!($($arg)*))
-    }};
-}
+// #[macro_export]
+// macro_rules! println {
+//     () => {
+//         print("\n")
+//     };
+//     ($($arg:tt)*) => {{
+//         use ::core::fmt::Write;
+//         let mut konsole = $crate::konsole::KONSOLE.lock();
+//         write!(&mut konsole, "{}", core::format_args_nl!($($arg)*))
+//     }};
+// }
 
 pub struct Konsole {
     vga_buffer: VgaBuffer,
@@ -62,12 +62,12 @@ impl Konsole {
         match ch.code_point() {
             b'\r' => {
                 self.col = 0;
-                self.vga_buffer.sync();
+                self.vga_buffer.flush();
                 return;
             }
             b'\n' => {
                 self.next_line();
-                self.vga_buffer.sync();
+                self.vga_buffer.flush();
                 return;
             }
             _ => (),
