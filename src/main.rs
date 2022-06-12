@@ -44,17 +44,15 @@ pub enum QemuExitCode {
 
 /// Tell QEMU we are about to exit.
 pub fn exit_qemu(exit_code: QemuExitCode) -> ! {
-    let exit_code = exit_code as u32;
     // SAFETY:
     // I have no idea what I'm doing, but I guess this won't burn my CPU.
     // So it's safe, isn't it?:p
     unsafe {
         // See https://doc.rust-lang.org/nightly/rust-by-example/unsafe/asm.html
         core::arch::asm! {
-            // Use the x register modifier to use 32-bit register.
-            "out 0xfe, {exit_code:x}",
-            exit_code = in(reg) exit_code,
-            options(noreturn)
+            "out 0xf4, eax",
+            in("eax") exit_code as u32,
+            options(noreturn, nomem, nostack, preserves_flags)
         };
     }
 }
