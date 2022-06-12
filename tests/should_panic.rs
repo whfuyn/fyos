@@ -5,7 +5,7 @@ use fyos::{exit_qemu, serial_print, serial_println, QemuExitCode};
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
-    serial_println!("[ok]");
+    serial_println!("[OK]");
     exit_qemu(QemuExitCode::Success);
 }
 

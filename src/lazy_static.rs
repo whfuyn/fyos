@@ -34,7 +34,7 @@ impl<T: 'static, F: FnOnce() -> T> LazyStatic<T, F> {
 
 impl<T: 'static, F: FnOnce() -> T> Drop for LazyStatic<T, F> {
     fn drop(&mut self) {
-        match self.init_state.load(Ordering::Relaxed) {
+        match *self.init_state.get_mut() {
             InitStage::Uninit | InitStage::Initing => (),
             // SAFETY:
             // - We have unique access to self.value on drop, and
