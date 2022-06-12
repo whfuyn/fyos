@@ -1,4 +1,4 @@
-use crate::lazy_static::LazyStatic;
+use crate::lazy_static;
 use crate::spinlock::SpinLock;
 
 const BRIGHT_BIT: u8 = 1 << 3;
@@ -209,8 +209,9 @@ impl core::fmt::Write for Screen {
     }
 }
 
-pub static SCREEN: LazyStatic<SpinLock<Screen>, fn() -> SpinLock<Screen>> =
-    LazyStatic::new(|| SpinLock::new(Screen::new()));
+lazy_static! {
+    pub static ref SCREEN: SpinLock<Screen> = SpinLock::new(Screen::new());
+}
 
 #[macro_export]
 macro_rules! print {
@@ -222,13 +223,14 @@ macro_rules! print {
 #[macro_export]
 macro_rules! println {
     () => {{
-        $crate::screen::print(::core::format_args("\n"));
+        $crate::print!("\n");
     }};
     ($($arg:tt)*) => {{
-        $crate::screen::_print(::core::format_args_nl!($($arg)*));
+        $crate::print!("{}\n", ::core::format_args!($($arg)*));
     }};
 }
 
+#[doc(hidden)]
 pub fn _print(args: core::fmt::Arguments) {
     use core::fmt::Write;
     SCREEN.lock().write_fmt(args).unwrap();

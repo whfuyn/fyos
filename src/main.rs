@@ -1,14 +1,14 @@
 #![no_std]
 #![no_main]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![feature(format_args_nl)]
 
 mod lazy_static;
 mod screen;
 mod spinlock;
 
 #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    println!("{}", info);
     loop {
         core::hint::spin_loop();
     }

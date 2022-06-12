@@ -12,9 +12,8 @@ I use this tutorial as a guide. Things of interest will be implemented on my own
 cargo run
 ```
 
-This will run the built kernel in `qemu`.
+This will run the built kernel in `QEMU`.
 
 ## Features
 
-- [x] scrolling console
-
+- [x] Scrolling Console

@@ -51,6 +51,10 @@ impl<T: 'static, F: FnOnce() -> T> Deref for LazyStatic<T, F> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
+        // TODO:
+        // This may cause a race condition when the interrupt handler gets in
+        // during the Initing stage.
+        // We need to block that temporarily.
         loop {
             match self.init_state.compare_exchange(
                 InitStage::Uninit,
@@ -86,3 +90,16 @@ impl<T: 'static, F: FnOnce() -> T> Deref for LazyStatic<T, F> {
 // SAFETY: I'm not sure...
 unsafe impl<T: Send + 'static, F: Send + FnOnce() -> T> Send for LazyStatic<T, F> {}
 unsafe impl<T: Send + Sync + 'static, F: Send + Sync + FnOnce() -> T> Sync for LazyStatic<T, F> {}
+
+#[macro_export]
+macro_rules! lazy_static {
+    ($vis:vis static ref $name:ident: $ty:ty = $expr:expr;) => {
+        $vis static $name:$crate::lazy_static::LazyStatic::<$ty, fn() -> $ty> = $crate::lazy_static::LazyStatic::<$ty, fn() -> $ty>::new(|| $expr);
+    };
+    ($vis:vis static ref $name:ident: $ty:ty = $expr:expr; $($rest:tt)*) => {
+        $crate::lazy_static!{
+            $vis static ref $name: $ty = $expr;
+        }
+        $crate::lazy_static!{ $($rest)* }
+    };
+}

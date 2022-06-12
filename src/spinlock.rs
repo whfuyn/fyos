@@ -65,9 +65,9 @@ impl<'a, T: ?Sized> DerefMut for SpinLockGuard<'a, T> {
 }
 
 // SAFETY:
-// Thoes conditions are copied from std Mutex. I'm not 100% sure
-// why T: Send is needed and sufficient.
-// But thread_local data might be an example that !Send data
-// should not be Send or Sync even in Mutex.
+// Thoes conditions are copied from std Mutex. I'm not 100% sure why T: Send is
+// needed and sufficient.
+// But thread_local data might be an example that !Send data should not be Send
+// or Sync even in Mutex.
 unsafe impl<T: ?Sized + Send> Send for SpinLock<T> {}
 unsafe impl<T: ?Sized + Send> Sync for SpinLock<T> {}
