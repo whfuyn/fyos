@@ -72,16 +72,20 @@ impl ScreenChar {
     }
 }
 
+// TODO:
+// It's not good. It's protected by convention, not the type system.
 /// Wrapper that indicates inner should not be written directly
 /// without using volatile.
 #[repr(transparent)]
 struct Volatile<T>(T);
 
+/// Type alias for non-volatile buffer row.
+/// It's easier to use for the users of VgaBuffer.
 type VgaBufferRow = [ScreenChar; VGA_BUFFER_COLUMNS];
 
-/// I prefer not to depends on an outside crate unless absolutely
-/// neccessary, so I don't use `volatile` crate here. Instead, I
-/// wraps those volatile ops inside here.
+// I prefer not to depends on an outside crate unless absolutely
+// neccessary, so I don't use `volatile` crate here. Instead, I
+// wrap them by myself.
 #[repr(transparent)]
 struct VgaBuffer([[Volatile<ScreenChar>; VGA_BUFFER_COLUMNS]; VGA_BUFFER_ROWS]);
 
@@ -257,7 +261,7 @@ mod test {
         print!("1");
         print!("1\r");
         print!("1\r\n");
-        print!("1\n");
+        print!("1\n1");
 
         for _ in 0..100 {
             println!("1");
@@ -265,10 +269,15 @@ mod test {
         for _ in 0..25 {
             println!("1");
         }
+        for _ in 0..1024 {
+            print!("1");
+        }
     }
 
     #[test_case]
     fn test_println_output() {
+        // Force a new line.
+        println!();
         let s = "Some test string that fits on a single line";
         println!("{}", s);
         let screen = SCREEN.lock();
