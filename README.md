@@ -20,5 +20,6 @@ This will run the built kernel in `QEMU`.
 - [x] Lazy Static(?)
 - [x] Spin Lock(?)
 - [] Test Framework
+    - [x] Exit QEMU
 
 ? means I'm not sure if I've done it right (probably not).

@@ -7,6 +7,7 @@
 
 mod lazy_static;
 mod screen;
+mod serial;
 mod spinlock;
 
 #[panic_handler]
@@ -19,10 +20,10 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
-    println!("Running {} tests..", tests.len());
+    serial_println!("Running {} tests..", tests.len());
 
     for (i, test) in tests.iter().enumerate() {
-        println!("\n# Case {}", i);
+        serial_println!("\n# Case {}", i);
         test();
     }
     exit_qemu(QemuExitCode::Success);
@@ -45,8 +46,7 @@ pub enum QemuExitCode {
 /// Tell QEMU we are about to exit.
 pub fn exit_qemu(exit_code: QemuExitCode) -> ! {
     // SAFETY:
-    // I have no idea what I'm doing, but I guess this won't burn my CPU.
-    // So it's safe, isn't it?:p
+    // Write exit code to QEMU's isa-debug-exit device.
     unsafe {
         // See https://doc.rust-lang.org/nightly/rust-by-example/unsafe/asm.html
         core::arch::asm! {
@@ -69,6 +69,7 @@ fn main() {
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    serial_println!("1");
     #[cfg(test)]
     test_main();
 
