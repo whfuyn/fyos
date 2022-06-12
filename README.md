@@ -17,3 +17,8 @@ This will run the built kernel in `QEMU`.
 ## Features
 
 - [x] Scrolling Console
+- [x] Lazy Static(?)
+- [x] Spin Lock(?)
+- [] Test Framework
+
+? means I'm not sure if I've done it right (probably not).

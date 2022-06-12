@@ -153,7 +153,7 @@ impl Screen {
             b'\r' => self.col = 0,
             mut byte => {
                 // Unprintable char
-                if !(0x20..=0x7e).contains(&byte) {
+                if !(b' '..=b'~').contains(&byte) {
                     byte = 0xfe;
                 }
                 let ch = ScreenChar::new(byte, self.color_code);

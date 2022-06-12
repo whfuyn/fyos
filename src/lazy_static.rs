@@ -94,7 +94,8 @@ unsafe impl<T: Send + Sync + 'static, F: Send + Sync + FnOnce() -> T> Sync for L
 #[macro_export]
 macro_rules! lazy_static {
     ($vis:vis static ref $name:ident: $ty:ty = $expr:expr;) => {
-        $vis static $name:$crate::lazy_static::LazyStatic::<$ty, fn() -> $ty> = $crate::lazy_static::LazyStatic::<$ty, fn() -> $ty>::new(|| $expr);
+        $vis static $name: $crate::lazy_static::LazyStatic::<$ty, fn() -> $ty> =
+            $crate::lazy_static::LazyStatic::<$ty, fn() -> $ty>::new(|| $expr);
     };
     ($vis:vis static ref $name:ident: $ty:ty = $expr:expr; $($rest:tt)*) => {
         $crate::lazy_static!{
