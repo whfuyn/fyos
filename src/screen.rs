@@ -72,32 +72,36 @@ impl ScreenChar {
     }
 }
 
+/// Wrapper that indicates inner should not be written directly
+/// without using volatile.
+#[repr(transparent)]
+struct Volatile<T>(T);
+
 type VgaBufferRow = [ScreenChar; VGA_BUFFER_COLUMNS];
 
 /// I prefer not to depends on an outside crate unless absolutely
 /// neccessary, so I don't use `volatile` crate here. Instead, I
 /// wraps those volatile ops inside here.
 #[repr(transparent)]
-struct VgaBuffer([VgaBufferRow; VGA_BUFFER_ROWS]);
+struct VgaBuffer([[Volatile<ScreenChar>; VGA_BUFFER_COLUMNS]; VGA_BUFFER_ROWS]);
 
 impl VgaBuffer {
+    /// Read a ScreenChar to the VGA buffer.
+    /// # Panics
+    /// Panics if row or col goes outside of the screen.
+    #[allow(dead_code)]
+    pub fn read_char(&self, row: usize, col: usize) -> ScreenChar {
+        // SAFETY: self.0[row][col] will panics otherwise.
+        unsafe { core::ptr::read_volatile(&self.0[row][col]).0 }
+    }
+
     /// Write a ScreenChar to the VGA buffer.
     /// # Panics
     /// Panics if row or col goes outside of the screen.
     pub fn write_char(&mut self, row: usize, col: usize, ch: ScreenChar) {
         // SAFETY: self.0[row][col] will panics otherwise.
         unsafe {
-            core::ptr::write_volatile(&mut self.0[row][col], ch);
-        }
-    }
-
-    /// Write a row at idx.
-    /// # Panics
-    /// Panics if idx goes outside of the screen
-    pub fn write_row(&mut self, idx: usize, row: VgaBufferRow) {
-        // SAFETY: self.0[idx] will panics otherwise.
-        unsafe {
-            core::ptr::write_volatile(&mut self.0[idx], row);
+            core::ptr::write_volatile(&mut self.0[row][col], Volatile(ch));
         }
     }
 
@@ -106,7 +110,17 @@ impl VgaBuffer {
     /// Panics if idx goes outside of the screen
     pub fn read_row(&self, idx: usize) -> VgaBufferRow {
         // SAFETY: self.0[idx] will panics otherwise.
-        unsafe { core::ptr::read_volatile(&self.0[idx]) }
+        unsafe { core::ptr::read_volatile(&self.0[idx] as *const _ as *const VgaBufferRow) }
+    }
+
+    /// Write a row at idx.
+    /// # Panics
+    /// Panics if idx goes outside of the screen
+    pub fn write_row(&mut self, idx: usize, row: VgaBufferRow) {
+        // SAFETY: self.0[idx] will panics otherwise.
+        unsafe {
+            core::ptr::write_volatile(&mut self.0[idx] as *mut _ as *mut VgaBufferRow, row);
+        }
     }
 }
 
@@ -125,7 +139,9 @@ impl Screen {
         let buffer = unsafe { &mut *(VGA_BUFFER_ADDR as *mut VgaBuffer) };
 
         Self {
-            row: 0,
+            // This has a benefit that we know it will print to the last line,
+            // which is convenient for writing tests.
+            row: VGA_BUFFER_ROWS - 1,
             col: 0,
             buffer,
             color_code: ColorCode::new(Color::Yellow, Color::Black),
@@ -187,18 +203,11 @@ impl Screen {
             self.buffer.write_row(r, lower_row);
         }
         // Clear the last row.
-        self.clear_row(VGA_BUFFER_ROWS - 1);
+        self.buffer
+            .write_row(VGA_BUFFER_ROWS - 1, [ScreenChar::Blank; VGA_BUFFER_COLUMNS]);
 
         // self.row remains unchanged.
         self.col = 0;
-    }
-
-    /// Fill the row at idx with blank chars.
-    /// # Panics
-    /// Panics if idx goes outside of the screen.
-    pub fn clear_row(&mut self, idx: usize) {
-        self.buffer
-            .write_row(idx, [ScreenChar::Blank; VGA_BUFFER_COLUMNS]);
     }
 }
 
@@ -234,4 +243,38 @@ macro_rules! println {
 pub fn _print(args: core::fmt::Arguments) {
     use core::fmt::Write;
     SCREEN.lock().write_fmt(args).unwrap();
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test_case]
+    fn test_printx_no_panic() {
+        println!();
+        println!("1");
+
+        print!("1");
+        print!("1\r");
+        print!("1\r\n");
+        print!("1\n");
+
+        for _ in 0..100 {
+            println!("1");
+        }
+        for _ in 0..25 {
+            println!("1");
+        }
+    }
+
+    #[test_case]
+    fn test_println_output() {
+        let s = "Some test string that fits on a single line";
+        println!("{}", s);
+        let screen = SCREEN.lock();
+        for (col, ch) in s.chars().enumerate() {
+            let screen_char = screen.buffer.read_char(VGA_BUFFER_ROWS - 2, col);
+            assert_eq!(char::from(screen_char.ascii_char), ch);
+        }
+    }
 }

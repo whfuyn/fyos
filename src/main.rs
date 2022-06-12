@@ -10,6 +10,7 @@ mod screen;
 mod serial;
 mod spinlock;
 
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     println!("{}", info);
@@ -19,21 +20,40 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 }
 
 #[cfg(test)]
-fn test_runner(tests: &[&dyn Fn()]) {
-    serial_println!("Running {} tests..", tests.len());
-
-    for (i, test) in tests.iter().enumerate() {
-        serial_println!("\n# Case {}", i);
-        test();
-    }
-    exit_qemu(QemuExitCode::Success);
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    serial_println!("[Failed]");
+    serial_println!("{}", info);
+    exit_qemu(QemuExitCode::Failed);
 }
 
-#[test_case]
-fn trivial_assertion() {
-    println!("trivial assertion..");
-    assert_eq!(1, 1);
-    println!("easy!");
+#[cfg(test)]
+trait Testable {
+    fn run(&self);
+}
+
+#[cfg(test)]
+impl<F: Fn()> Testable for F {
+    fn run(&self) {
+        serial_print!("{}...\t", core::any::type_name::<F>());
+        self();
+        serial_print!("[OK]");
+    }
+}
+
+#[cfg(test)]
+fn test_runner(tests: &[&dyn Testable]) {
+    if !tests.is_empty() {
+        serial_println!("Running {} tests...", tests.len());
+    } else {
+        serial_println!("No test to run.");
+    }
+
+    for &test in tests.iter() {
+        test.run();
+        serial_println!();
+    }
+    exit_qemu(QemuExitCode::Success);
 }
 
 #[repr(u32)]
@@ -69,7 +89,6 @@ fn main() {
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    serial_println!("1");
     #[cfg(test)]
     test_main();
 
