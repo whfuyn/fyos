@@ -1,7 +1,8 @@
 #![no_std]
 #![no_main]
+#![feature(type_name_of_val)]
 
-use fyos::{exit_qemu, serial_print, serial_println, QemuExitCode};
+use fyos::{bit_field::BitField, exit_qemu, serial_print, serial_println, QemuExitCode};
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -11,12 +12,16 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    should_fail();
+    test_bit_field_range_protect();
     serial_println!("[Test did not panic]");
     exit_qemu(QemuExitCode::Failed);
 }
 
-fn should_fail() {
-    serial_print!("should_panic::should_fail...\t");
-    assert_eq!(0, 1);
+fn test_bit_field_range_protect() {
+    serial_print!(
+        "{}...\t",
+        core::any::type_name_of_val(&test_bit_field_range_protect)
+    );
+    let mut bits = 0;
+    bits.set_bits(1..=2, 0b111);
 }

@@ -250,7 +250,7 @@ pub fn _print(args: core::fmt::Arguments) {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test_case]

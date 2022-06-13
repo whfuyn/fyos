@@ -5,10 +5,13 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+mod interrupts;
 mod lazy_static;
 pub mod screen;
 pub mod serial;
 mod spinlock;
+// TODO: how to make it pub only to should-panic tests?
+pub mod bit_field;
 
 pub trait Testable {
     fn run(&self);
