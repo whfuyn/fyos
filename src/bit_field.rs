@@ -57,12 +57,23 @@ fn from_range<R: RangeBounds<u8>>(range: R) -> (u8, u8) {
 }
 
 pub trait BitField: Sized {
+    fn get_bits<R: IntoSpan>(&self, range: R) -> Self;
     fn set_bits<R: IntoSpan>(&mut self, range: R, bits: Self);
 }
 
 // This impl depends on the size of u16. We must be careful not to
 // overflow when migrate it to other integral types.
 impl BitField for u16 {
+    /// Get bit pattern in range.
+    /// # Panics
+    /// Panics if the range isn't valid
+    fn get_bits<R: IntoSpan>(&self, range: R) -> Self {
+        let (start, end) = range.into_span();
+        // Get a full mask for the range span.
+        let mask: u16 = ((1u32 << (end - start + 1)) - 1) as u16;
+        (*self >> start) & mask
+    }
+
     /// Set self's bit pattern in range to bits.
     /// # Panics
     /// Panics if the range isn't valid or bits excess the range.
@@ -95,5 +106,10 @@ mod tests {
         assert_eq!(bits, 0b1000);
         bits.set_bits(2, 1);
         assert_eq!(bits, 0b1100);
+
+        assert_eq!(bits.get_bits(..), 0b1100);
+        assert_eq!(bits.get_bits(1..=2), 0b10);
+        assert_eq!(bits.get_bits(1), 0);
+        assert_eq!(bits.get_bits(2), 1);
     }
 }
