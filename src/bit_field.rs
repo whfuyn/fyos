@@ -32,7 +32,9 @@ impl_into_span! {
     Range<u8>, RangeFrom<u8>, RangeFull, RangeTo<u8>, RangeInclusive<u8>, RangeToInclusive<u8>
 }
 
-/// Turn various types of range into span
+/// Turn various types of range into span.
+/// # Panics
+/// Panics if the range is invalid for u16 bits.
 fn from_range<R: RangeBounds<u8>>(range: R) -> (u8, u8) {
     const INVALID_BIT_RANGE: &str = "invalid bit range";
 

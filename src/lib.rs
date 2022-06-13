@@ -2,7 +2,7 @@
 #![cfg_attr(test, no_main)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![feature(custom_test_frameworks)]
-#![test_runner(crate::test_runner)]
+#![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 mod interrupts;
@@ -10,6 +10,7 @@ mod lazy_static;
 pub mod screen;
 pub mod serial;
 mod spinlock;
+mod x86_64;
 // TODO: how to make it pub only to should-panic tests?
 pub mod bit_field;
 
