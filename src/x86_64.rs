@@ -40,3 +40,28 @@ impl SegmentSelector {
         SegmentSelector(index << 3 | (rpl as u16))
     }
 }
+
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct VirtAddr(pub u64);
+
+#[repr(C, packed(2))]
+pub struct DescriptorTablePointer {
+    pub limit: u16,
+    pub base: VirtAddr,
+}
+
+/// Load interrupt descriptor table
+/// SAFETY:
+/// * Handler address must be valid.
+/// * There may be other requirements I don't know.
+#[inline]
+pub unsafe fn lidt(idt: &DescriptorTablePointer) {
+    unsafe {
+        asm!(
+            "lidt [{}]",
+            in(reg) idt,
+            options(readonly, nostack, preserves_flags)
+        );
+    }
+}

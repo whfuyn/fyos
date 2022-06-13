@@ -1,5 +1,36 @@
 use crate::bit_field::BitField;
+use crate::lazy_static;
+use crate::spinlock::SpinLock;
 use crate::x86_64::*;
+
+// lazy_static! {
+//     pub static ref IDT: SpinLock<Idt> = SpinLock::new(Idt::new());
+//     pub static ref DTP: DescriptorTablePointer = {
+//         let mut idt = IDT.lock();
+//         idt.set_handler(0, capture_divid_by_zero);
+//         DescriptorTablePointer {
+//             limit: (core::mem::size_of::<Idt>() - 1) as u16,
+//             base: VirtAddr((&*idt) as *const Idt as u64),
+//         }
+//     };
+// }
+
+lazy_static! {
+    static ref IDT: Idt = {
+        let mut idt = Idt::new();
+        idt.set_handler(0, capture_divid_by_zero);
+        idt
+    };
+}
+
+extern "C" fn capture_divid_by_zero() -> ! {
+    crate::serial_println!("captured!");
+    loop {}
+}
+
+pub fn init() {
+    IDT.load();
+}
 
 #[repr(transparent)]
 pub struct Idt([Entry; 16]);
@@ -18,8 +49,14 @@ impl Idt {
         e
     }
 
-    pub fn load(&self) {
-
+    pub fn load(&'static self) {
+        let ptr = DescriptorTablePointer {
+            limit: (core::mem::size_of::<Idt>() - 1) as u16,
+            base: VirtAddr(self as *const Idt as u64),
+        };
+        unsafe {
+            lidt(&ptr);
+        }
     }
 }
 
@@ -36,6 +73,7 @@ pub struct Entry {
 
 impl Entry {
     fn new(gdt_selector: SegmentSelector, handler: HandlerFunc) -> Self {
+        #[allow(clippy::fn_to_numeric_cast)]
         let pointer = handler as u64;
         Entry {
             pointer_low: pointer as u16,
@@ -94,5 +132,21 @@ impl EntryOptions {
     pub fn set_stack_index(&mut self, index: u16) -> &mut Self {
         self.0.set_bits(0..=2, index);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::serial_println;
+
+    #[test_case]
+    fn test_capture_divid_by_zero() {
+        init();
+        serial_println!("go!");
+        unsafe {
+            core::arch::asm!("mov dx, 0", "div dx", options(nomem, nostack));
+        }
+        serial_println!("nerver!");
     }
 }
