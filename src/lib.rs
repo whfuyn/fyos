@@ -1,9 +1,10 @@
 #![no_std]
 #![cfg_attr(test, no_main)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
+#![feature(custom_test_frameworks)]
+#![feature(abi_x86_interrupt)]
 
 mod interrupts;
 mod lazy_static;
@@ -13,6 +14,10 @@ mod spinlock;
 mod x86_64;
 // TODO: how to make it pub only to should-panic tests?
 pub mod bit_field;
+
+pub fn init() {
+    interrupts::init_idt();
+}
 
 pub trait Testable {
     fn run(&self);

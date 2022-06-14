@@ -2,6 +2,7 @@ use crate::bit_field::BitField;
 use crate::lazy_static;
 use crate::spinlock::SpinLock;
 use crate::x86_64::*;
+use crate::serial_println;
 
 // lazy_static! {
 //     pub static ref IDT: SpinLock<Idt> = SpinLock::new(Idt::new());
@@ -18,17 +19,23 @@ use crate::x86_64::*;
 lazy_static! {
     static ref IDT: Idt = {
         let mut idt = Idt::new();
-        idt.set_handler(0, capture_divid_by_zero);
+        idt.set_handler(0, divid_by_zero_handler);
+        idt.set_handler_(3, breakpoint_handler);
         idt
     };
 }
 
-extern "C" fn capture_divid_by_zero() -> ! {
+extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
+    serial_println!("Haoye! It's a breakpoint!");
+    serial_println!("StackFram:\n{:?}", stack_frame);
+}
+
+extern "C" fn divid_by_zero_handler() -> ! {
     crate::serial_println!("captured!");
     loop {}
 }
 
-pub fn init() {
+pub fn init_idt() {
     IDT.load();
 }
 
@@ -46,6 +53,12 @@ impl Idt {
     pub fn set_handler(&mut self, entry: u8, handler: HandlerFunc) -> &mut Entry {
         let e = &mut self.0[entry as usize];
         *e = Entry::new(CS::get_reg(), handler);
+        e
+    }
+
+    pub fn set_handler_(&mut self, entry: u8, handler: HandlerFunc_) -> &mut Entry {
+        let e = &mut self.0[entry as usize];
+        *e = Entry::new_(CS::get_reg(), handler);
         e
     }
 
@@ -72,6 +85,19 @@ pub struct Entry {
 }
 
 impl Entry {
+    fn new_(gdt_selector: SegmentSelector, handler: HandlerFunc_) -> Self {
+        #[allow(clippy::fn_to_numeric_cast)]
+        let pointer = handler as u64;
+        Entry {
+            pointer_low: pointer as u16,
+            gdt_selector,
+            options: EntryOptions::new(),
+            pointer_middle: (pointer >> 16) as u16,
+            pointer_high: (pointer >> 32) as u32,
+            reserved: 0,
+        }
+    }
+
     fn new(gdt_selector: SegmentSelector, handler: HandlerFunc) -> Self {
         #[allow(clippy::fn_to_numeric_cast)]
         let pointer = handler as u64;
@@ -138,15 +164,30 @@ impl EntryOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::x86_64;
     use crate::serial_println;
 
     #[test_case]
-    fn test_capture_divid_by_zero() {
-        init();
+    fn test_breakpoint_handler() {
+        init_idt();
         serial_println!("go!");
-        unsafe {
-            core::arch::asm!("mov dx, 0", "div dx", options(nomem, nostack));
-        }
-        serial_println!("nerver!");
+        x86_64::int3();
+        serial_println!("haoye!");
     }
+
+    // #[test_case]
+    // fn test_divid_by_zero_handler() {
+    //     init_idt();
+    //     serial_println!("go!");
+    //     unsafe {
+    //         core::arch::asm!(
+    //             "mov dx, 0",
+    //             "div dx",
+    //             out("dx") _,
+    //             out("ax") _,
+    //             options(nomem, nostack),
+    //         );
+    //     }
+    //     serial_println!("nerver!");
+    // }
 }

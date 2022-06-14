@@ -3,6 +3,7 @@
 use core::arch::asm;
 
 pub type HandlerFunc = extern "C" fn() -> !;
+pub type HandlerFunc_ = extern "x86-interrupt" fn(InterruptStackFrame);
 
 #[repr(u8)]
 pub enum PrivilegeLevel {
@@ -41,7 +42,8 @@ impl SegmentSelector {
     }
 }
 
-#[derive(Clone, Copy)]
+// TODO: impl Debug
+#[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 pub struct VirtAddr(pub u64);
 
@@ -65,3 +67,45 @@ pub unsafe fn lidt(idt: &DescriptorTablePointer) {
         );
     }
 }
+
+#[inline]
+pub fn int3() {
+    unsafe {
+        asm!(
+            "int 3",
+            options(preserves_flags)
+        );
+    }
+}
+
+#[inline]
+pub fn divid_by_zero() {
+    unsafe {
+        asm!(
+            "mov dx, 0",
+            "div dx",
+            out("dx") _,
+            out("ax") _,
+            options(nomem, nostack),
+        );
+    }
+}
+
+// TODO: impl dref and unsafe get_mut
+/// Wrapper that ensures no accidental modification of the interrupt stack frame.
+#[derive(Debug)]
+#[repr(C)]
+pub struct InterruptStackFrame {
+    value: InterruptStackFrameValue,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct InterruptStackFrameValue {
+    pub instruction_pointer: VirtAddr,
+    pub code_segment: u64,
+    pub cpu_flags: u64,
+    pub stack_pointer: VirtAddr,
+    pub stack_segment: u64,
+}
+
