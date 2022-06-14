@@ -2,8 +2,8 @@
 
 use core::arch::asm;
 
-pub type HandlerFunc = extern "C" fn() -> !;
-pub type HandlerFunc_ = extern "x86-interrupt" fn(InterruptStackFrame);
+pub type RawHandlerFunc = unsafe extern "C" fn() -> !;
+pub type HandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame);
 
 #[repr(u8)]
 pub enum PrivilegeLevel {
@@ -79,7 +79,7 @@ pub fn int3() {
 }
 
 #[inline]
-pub fn divid_by_zero() {
+pub fn divide_by_zero() {
     unsafe {
         asm!(
             "mov dx, 0",
@@ -91,8 +91,22 @@ pub fn divid_by_zero() {
     }
 }
 
+// /// SAFETY:
+// /// * It's called in the begining of a raw interrupt handler.
+// #[inline(always)]
+// pub unsafe fn load_interrupt_stack_frame<'a>() -> &'a InterruptStackFrame {
+//     let stack_frame: *const InterruptStackFrame;
+//     unsafe {
+//         asm!(
+//             "mov {}, rsp",
+//             out(reg) stack_frame,
+//         );
+//         &*stack_frame
+//     }
+// }
+
 // TODO: impl dref and unsafe get_mut
-/// Wrapper that ensures no accidental modification of the interrupt stack frame.
+/// Wrapper that ensures no accidental modification of the interrupt stack frame.(?)
 #[derive(Debug)]
 #[repr(C)]
 pub struct InterruptStackFrame {

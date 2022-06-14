@@ -3,6 +3,7 @@ use crate::lazy_static;
 use crate::spinlock::SpinLock;
 use crate::x86_64::*;
 use crate::serial_println;
+use core::arch::asm;
 
 // lazy_static! {
 //     pub static ref IDT: SpinLock<Idt> = SpinLock::new(Idt::new());
@@ -19,19 +20,39 @@ use crate::serial_println;
 lazy_static! {
     static ref IDT: Idt = {
         let mut idt = Idt::new();
-        idt.set_handler(0, divid_by_zero_handler);
-        idt.set_handler_(3, breakpoint_handler);
+        idt.set_handler_raw(0, divide_by_zero_wrapper);
+        idt.set_handler(3, breakpoint_handler);
         idt
     };
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     serial_println!("Haoye! It's a breakpoint!");
-    serial_println!("StackFram:\n{:?}", stack_frame);
+    serial_println!("StackFrame:\n{:#?}", stack_frame);
 }
 
-extern "C" fn divid_by_zero_handler() -> ! {
-    crate::serial_println!("captured!");
+#[naked]
+extern "C" fn divide_by_zero_wrapper() -> ! {
+    // TODO: how to specify clobber rdi? Is this asm correct?
+    // SAFETY:
+    // * Called as a interrupt handler
+    unsafe {
+        asm!(
+            "mov rdi, rsp",
+            // Align the stack pointer
+            "sub rsp, 8",
+            "call {}",
+            // Did I do it right?
+            // TODO: add an const item to static assert that the signature is valid
+            sym divid_by_zero_handler,
+            options(noreturn)
+        )
+    }
+}
+
+extern "C" fn divid_by_zero_handler(stack_frame: &InterruptStackFrame) -> ! {
+    crate::serial_println!("looks at the stack frame!");
+    crate::serial_println!("{:#?}", stack_frame);
     loop {}
 }
 
@@ -50,13 +71,13 @@ impl Idt {
     // We don't return a &mut EntryOptions because ref to packed struct's field
     // may not be properly aligned.
     // See https://github.com/rust-lang/rust/issues/82523
-    pub fn set_handler(&mut self, entry: u8, handler: HandlerFunc) -> &mut Entry {
+    pub fn set_handler_raw(&mut self, entry: u8, handler: RawHandlerFunc) -> &mut Entry {
         let e = &mut self.0[entry as usize];
         *e = Entry::new(CS::get_reg(), handler);
         e
     }
 
-    pub fn set_handler_(&mut self, entry: u8, handler: HandlerFunc_) -> &mut Entry {
+    pub fn set_handler(&mut self, entry: u8, handler: HandlerFunc) -> &mut Entry {
         let e = &mut self.0[entry as usize];
         *e = Entry::new_(CS::get_reg(), handler);
         e
@@ -85,7 +106,7 @@ pub struct Entry {
 }
 
 impl Entry {
-    fn new_(gdt_selector: SegmentSelector, handler: HandlerFunc_) -> Self {
+    fn new_(gdt_selector: SegmentSelector, handler: HandlerFunc) -> Self {
         #[allow(clippy::fn_to_numeric_cast)]
         let pointer = handler as u64;
         Entry {
@@ -98,7 +119,7 @@ impl Entry {
         }
     }
 
-    fn new(gdt_selector: SegmentSelector, handler: HandlerFunc) -> Self {
+    fn new(gdt_selector: SegmentSelector, handler: RawHandlerFunc) -> Self {
         #[allow(clippy::fn_to_numeric_cast)]
         let pointer = handler as u64;
         Entry {
@@ -175,19 +196,11 @@ mod tests {
         serial_println!("haoye!");
     }
 
-    // #[test_case]
-    // fn test_divid_by_zero_handler() {
-    //     init_idt();
-    //     serial_println!("go!");
-    //     unsafe {
-    //         core::arch::asm!(
-    //             "mov dx, 0",
-    //             "div dx",
-    //             out("dx") _,
-    //             out("ax") _,
-    //             options(nomem, nostack),
-    //         );
-    //     }
-    //     serial_println!("nerver!");
-    // }
+    #[test_case]
+    fn test_divid_by_zero_handler() {
+        init_idt();
+        serial_println!("go!");
+        x86_64::divide_by_zero();
+        serial_println!("ok!");
+    }
 }
