@@ -27,7 +27,7 @@ pub trait Testable {
 
 impl<F: Fn()> Testable for F {
     fn run(&self) {
-        serial_print!("{}...\t", core::any::type_name::<F>());
+        serial_print!("{} ...\t", core::any::type_name::<F>());
         self();
         serial_print!("[OK]");
     }

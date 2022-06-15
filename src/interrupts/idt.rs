@@ -23,7 +23,8 @@ lazy_static! {
             Exception::DivideByZero,
             raw_handler!(divide_by_zero_handler -> !),
         );
-        idt.set_handler(Exception::BreakPoint, breakpoint_handler);
+        // idt.set_handler(Exception::BreakPoint, breakpoint_handler);
+        idt.set_raw_handler(Exception::BreakPoint, raw_handler!(breakpoint_handler));
         idt.set_raw_handler(
             Exception::InvalidOpCode,
             raw_handler!(invalid_opcode_handler -> !),
@@ -36,7 +37,16 @@ lazy_static! {
     };
 }
 
-extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
+// extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
+//     serial_println!("Haoye! It's a breakpoint!");
+//     serial_println!(
+//         "At {:#x}\nStackFrame:\n{:#?}",
+//         stack_frame.instruction_pointer,
+//         stack_frame
+//     );
+// }
+
+extern "C" fn breakpoint_handler(stack_frame: &InterruptStackFrame) {
     serial_println!("Haoye! It's a breakpoint!");
     serial_println!(
         "At {:#x}\nStackFrame:\n{:#?}",
