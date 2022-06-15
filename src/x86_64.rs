@@ -1,9 +1,12 @@
 // See https://docs.rs/x86_64
 
 use core::arch::asm;
+use core::fmt;
 
 pub type RawHandlerFunc = unsafe extern "C" fn() -> !;
+pub type RawHandlerFuncWithErrorCode = unsafe extern "C" fn() -> !;
 pub type HandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame);
+pub type HandlerFuncWithErrorCode = extern "x86-interrupt" fn(InterruptStackFrame);
 
 #[repr(u8)]
 pub enum PrivilegeLevel {
@@ -47,6 +50,18 @@ impl SegmentSelector {
 #[repr(transparent)]
 pub struct VirtAddr(pub u64);
 
+impl fmt::LowerHex for VirtAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::LowerHex::fmt(&self.0, f)
+    }
+}
+
+impl fmt::UpperHex for VirtAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::UpperHex::fmt(&self.0, f)
+    }
+}
+
 #[repr(C, packed(2))]
 pub struct DescriptorTablePointer {
     pub limit: u16,
@@ -71,7 +86,7 @@ pub unsafe fn lidt(idt: &DescriptorTablePointer) {
 #[inline]
 pub fn int3() {
     unsafe {
-        asm!("int 3", options(preserves_flags));
+        asm!("int 3");
     }
 }
 
@@ -85,6 +100,13 @@ pub fn divide_by_zero() {
             out("ax") _,
             options(nomem, nostack),
         );
+    }
+}
+
+#[inline]
+pub fn ud2() {
+    unsafe {
+        asm!("ud2");
     }
 }
 
@@ -108,6 +130,14 @@ pub fn divide_by_zero() {
 #[repr(C)]
 pub struct InterruptStackFrame {
     value: InterruptStackFrameValue,
+}
+
+impl core::ops::Deref for InterruptStackFrame {
+    type Target = InterruptStackFrameValue;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
