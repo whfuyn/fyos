@@ -71,10 +71,7 @@ pub unsafe fn lidt(idt: &DescriptorTablePointer) {
 #[inline]
 pub fn int3() {
     unsafe {
-        asm!(
-            "int 3",
-            options(preserves_flags)
-        );
+        asm!("int 3", options(preserves_flags));
     }
 }
 
@@ -122,4 +119,3 @@ pub struct InterruptStackFrameValue {
     pub stack_pointer: VirtAddr,
     pub stack_segment: u64,
 }
-

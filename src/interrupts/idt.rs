@@ -1,26 +1,13 @@
 use crate::bit_field::BitField;
 use crate::lazy_static;
-use crate::spinlock::SpinLock;
-use crate::x86_64::*;
+use crate::raw_handler;
 use crate::serial_println;
-use core::arch::asm;
-
-// lazy_static! {
-//     pub static ref IDT: SpinLock<Idt> = SpinLock::new(Idt::new());
-//     pub static ref DTP: DescriptorTablePointer = {
-//         let mut idt = IDT.lock();
-//         idt.set_handler(0, capture_divid_by_zero);
-//         DescriptorTablePointer {
-//             limit: (core::mem::size_of::<Idt>() - 1) as u16,
-//             base: VirtAddr((&*idt) as *const Idt as u64),
-//         }
-//     };
-// }
+use crate::x86_64::*;
 
 lazy_static! {
     static ref IDT: Idt = {
         let mut idt = Idt::new();
-        idt.set_handler_raw(0, divide_by_zero_wrapper);
+        idt.set_handler_raw(0, raw_handler!(divide_by_zero_handler));
         idt.set_handler(3, breakpoint_handler);
         idt
     };
@@ -31,29 +18,12 @@ extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     serial_println!("StackFrame:\n{:#?}", stack_frame);
 }
 
-#[naked]
-extern "C" fn divide_by_zero_wrapper() -> ! {
-    // TODO: how to specify clobber rdi? Is this asm correct?
-    // SAFETY:
-    // * Called as a interrupt handler
-    unsafe {
-        asm!(
-            "mov rdi, rsp",
-            // Align the stack pointer
-            "sub rsp, 8",
-            "call {}",
-            // Did I do it right?
-            // TODO: add an const item to static assert that the signature is valid
-            sym divid_by_zero_handler,
-            options(noreturn)
-        )
-    }
-}
-
-extern "C" fn divid_by_zero_handler(stack_frame: &InterruptStackFrame) -> ! {
+extern "C" fn divide_by_zero_handler(stack_frame: &InterruptStackFrame) -> ! {
     crate::serial_println!("looks at the stack frame!");
     crate::serial_println!("{:#?}", stack_frame);
-    loop {}
+    loop {
+        core::hint::spin_loop();
+    }
 }
 
 pub fn init_idt() {
@@ -185,8 +155,8 @@ impl EntryOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::x86_64;
     use crate::serial_println;
+    use crate::x86_64;
 
     #[test_case]
     fn test_breakpoint_handler() {

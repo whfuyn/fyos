@@ -6,8 +6,8 @@
 #![test_runner(fyos::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use fyos::println;
 use fyos::init;
+use fyos::println;
 
 static HELLO: &str = "Hello World!";
 static MORNING: &str = "Morning! Nice day for fishing ain't it?";
@@ -53,9 +53,6 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 #[naked]
 extern "C" fn naked_fn_exmaple() -> ! {
     unsafe {
-        core::arch::asm!(
-            "mov eax, 0x42",
-            options(noreturn)
-        );
+        core::arch::asm!("mov eax, 0x42", options(noreturn));
     }
 }

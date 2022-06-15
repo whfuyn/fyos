@@ -14,12 +14,10 @@ cargo run
 
 This will run the built kernel in `QEMU`.
 
-## Features
+## Libs
 
-- [x] Scrolling Console
 - [x] Lazy Static(?)
 - [x] Spin Lock(?)
-- [] Test Framework
-    - [x] Exit QEMU
+- [x] Bit Field
 
 ? means I'm not sure if I've done it right (probably not).
