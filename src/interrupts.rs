@@ -127,7 +127,8 @@ macro_rules! raw_handler_with_error_code {
                     "pop rdx",
                     "pop rcx",
                     "pop rax",
-                    "lea rsp, [rsp - 8]",
+                    // Pop error code
+                    "lea rsp, [rsp + 8]",
                     "iretq",
                     sym $name,
                     options(noreturn)
