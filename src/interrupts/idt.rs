@@ -21,32 +21,23 @@ lazy_static! {
         let mut idt = Idt::new();
         idt.set_raw_handler(
             Exception::DivideByZero,
-            raw_handler!(divide_by_zero_handler -> !),
+            raw_handler!(raw_divide_by_zero_handler -> !),
         );
         // idt.set_handler(Exception::BreakPoint, breakpoint_handler);
-        idt.set_raw_handler(Exception::BreakPoint, raw_handler!(breakpoint_handler));
+        idt.set_raw_handler(Exception::BreakPoint, raw_handler!(raw_breakpoint_handler));
         idt.set_raw_handler(
             Exception::InvalidOpCode,
-            raw_handler!(invalid_opcode_handler -> !),
+            raw_handler!(raw_invalid_opcode_handler -> !),
         );
         idt.set_raw_handler(
             Exception::PageFault,
-            raw_handler_with_error_code!(page_fault_handler -> !),
+            raw_handler_with_error_code!(raw_page_fault_handler -> !),
         );
         idt
     };
 }
 
-// extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
-//     serial_println!("Haoye! It's a breakpoint!");
-//     serial_println!(
-//         "At {:#x}\nStackFrame:\n{:#?}",
-//         stack_frame.instruction_pointer,
-//         stack_frame
-//     );
-// }
-
-extern "C" fn breakpoint_handler(stack_frame: &InterruptStackFrame) {
+extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     serial_println!("Haoye! It's a breakpoint!");
     serial_println!(
         "At {:#x}\nStackFrame:\n{:#?}",
@@ -55,7 +46,16 @@ extern "C" fn breakpoint_handler(stack_frame: &InterruptStackFrame) {
     );
 }
 
-extern "C" fn divide_by_zero_handler(stack_frame: &InterruptStackFrame) -> ! {
+extern "C" fn raw_breakpoint_handler(stack_frame: &InterruptStackFrame) {
+    serial_println!("Haoye! It's a breakpoint!");
+    serial_println!(
+        "At {:#x}\nStackFrame:\n{:#?}",
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
+}
+
+extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame) -> ! {
     serial_println!("looks at the stack frame!");
     serial_println!("{:#?}", stack_frame);
     loop {
@@ -63,7 +63,7 @@ extern "C" fn divide_by_zero_handler(stack_frame: &InterruptStackFrame) -> ! {
     }
 }
 
-extern "C" fn invalid_opcode_handler(stack_frame: &InterruptStackFrame) -> ! {
+extern "C" fn raw_invalid_opcode_handler(stack_frame: &InterruptStackFrame) -> ! {
     serial_println!(
         "EXCEPTION: invalid opcode at {:#x}\n{:#?}",
         stack_frame.instruction_pointer,
@@ -74,7 +74,7 @@ extern "C" fn invalid_opcode_handler(stack_frame: &InterruptStackFrame) -> ! {
     }
 }
 
-extern "C" fn page_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
+extern "C" fn raw_page_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
     serial_println!(
         "EXCEPTION: page fault with error code `{:#x}` at {:#x}\n{:#?}",
         error,
@@ -136,6 +136,8 @@ impl Idt {
             limit: (core::mem::size_of::<Idt>() - 1) as u16,
             base: VirtAddr(self as *const Idt as u64),
         };
+        // SAFETY:
+        // * The handler is valid idt and of 'static.
         unsafe {
             lidt(&ptr);
         }
@@ -227,6 +229,7 @@ mod tests {
         init_idt();
         serial_println!("go!");
         x86_64::int3();
+        crate::println!("haoye!");
         serial_println!("haoye!");
     }
 

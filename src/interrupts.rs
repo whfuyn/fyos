@@ -32,28 +32,43 @@ macro_rules! raw_handler {
         $crate::raw_handler!(@INNER $name)
     }};
     (@INNER $name: ident) => {{
+        // SAFETY:
+        // * Must be used as an interrupt handler.
         #[naked]
-        extern "C" fn wrapper() -> ! {
-            // TODO: how to specify clobbered rdi? Is this asm correct?
+        unsafe extern "C" fn wrapper() -> ! {
             // SAFETY:
-            // * Called as a interrupt handler
+            // * All scratch registers are saved and restored.
+            // * Handler signature has been checked above.
             unsafe {
                 ::core::arch::asm!(
-                    // We need to save the clobbered rdi as it's a callee-saved register.
-                    // It doesn't compile to specify clobbered registers in naked fn,
-                    // so we have to do it manually.
-                    // Notice that this also makes the stack pointer aligns to 16.
+                    // Save scratch registers
+                    "push rax",
+                    "push rcx",
+                    "push rdx",
+                    "push rsi",
                     "push rdi",
-                    // Read the addr of the interrupt stack frame, and pass it to
-                    // the handler as the first arg.
-                    // Notice that we need to add 8 to make up the space used by rdi.
-                    "mov rdi, rsp",
-                    "add rdi, 8",
+                    "push r8",
+                    "push r9",
+                    "push r10",
+                    "push r11",
+                    // Read the original addr of the interrupt stack frame,
+                    // and pass it as the first argument to the handler.
+                    // Be careful not to change any arithmetic flags.
+                    "lea rdi, [rsp + 0x48]",
+                    // Notice that we've pushed 9 registers onto stack, which
+                    // fortunately also make rsp align to 16.
                     "call {}",
-                    // Restore the clobbered rdi.
+                    // Restore scratch registers
+                    "pop r11",
+                    "pop r10",
+                    "pop r9",
+                    "pop r8",
                     "pop rdi",
+                    "pop rsi",
+                    "pop rdx",
+                    "pop rcx",
+                    "pop rax",
                     "iretq",
-                    // Did I do it right?
                     sym $name,
                     options(noreturn)
                 )
@@ -74,32 +89,49 @@ macro_rules! raw_handler_with_error_code {
         $crate::raw_handler_with_error_code!(@INNER $name)
     }};
     (@INNER $name: ident) => {{
+        // SAFETY:
+        // * Must be used as an interrupt handler which has an error code.
         #[naked]
-        extern "C" fn wrapper() -> ! {
+        unsafe extern "C" fn wrapper() -> ! {
+            // SAFETY:
+            // * All scratch registers are saved and restored.
+            // * Handler signature has been checked above.
             unsafe {
                 ::core::arch::asm!(
-                    // Put error code to rax
-                    "pop rax",
-                    // Load stack frame to rdx
-                    "mov rdx, rsp",
-                    // Save rdi and rsi
-                    "push rdi",
+                    // Save scratch registers
+                    "push rax",
+                    "push rcx",
+                    "push rdx",
                     "push rsi",
-                    // Align stack pointer to 16
-                    "sub rsp, 8",
-                    // Pass stack frame and error code as args
-                    "mov rdi, rdx",
-                    "mov rsi, rax",
+                    "push rdi",
+                    "push r8",
+                    "push r9",
+                    "push r10",
+                    "push r11",
+                    // Read the original addr of the interrupt stack frame,
+                    // and pass it as the first argument to the handler.
+                    // Be careful not to change any arithmetic flags.
+                    "lea rdi, [rsp + 0x50]",  // 8 * (9 registers + 1 error code)
+                    // Load the error code to rsi as the second argument.
+                    "mov rsi, [rsp + 0x48]",
+                    // Notice that we've pushed 9 registers onto stack, which
+                    // fortunately also make rsp align to 16.
                     "call {}",
-                    // Undo stack pointer alignment
-                    "add rsp, 8",
-                    // Restore rdi and rsi
-                    "pop rsi",
+                    // Restore scratch registers
+                    "pop r11",
+                    "pop r10",
+                    "pop r9",
+                    "pop r8",
                     "pop rdi",
+                    "pop rsi",
+                    "pop rdx",
+                    "pop rcx",
+                    "pop rax",
+                    "lea rsp, [rsp - 8]",
                     "iretq",
                     sym $name,
                     options(noreturn)
-                );
+                )
             }
         }
         wrapper
