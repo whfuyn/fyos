@@ -2,6 +2,7 @@
 
 use core::arch::asm;
 use core::fmt;
+use core::ops;
 
 pub type RawHandlerFunc = unsafe extern "C" fn() -> !;
 pub type RawHandlerFuncWithErrorCode = unsafe extern "C" fn() -> !;
@@ -46,9 +47,36 @@ impl SegmentSelector {
 }
 
 // TODO: impl Debug
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct VirtAddr(pub u64);
+
+impl VirtAddr {
+    pub const fn zero() -> Self {
+        VirtAddr(0)
+    }
+
+    pub fn from_ptr<T>(ptr: *const T) -> Self {
+        VirtAddr(ptr as u64)
+    }
+}
+
+// TODO: consider those ops impls.
+impl ops::Add<u64> for VirtAddr {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        VirtAddr(self.0.checked_add(rhs).unwrap())
+    }
+}
+
+impl ops::Add<usize> for VirtAddr {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        VirtAddr(self.0.checked_add(rhs as u64).unwrap())
+    }
+}
 
 impl fmt::LowerHex for VirtAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

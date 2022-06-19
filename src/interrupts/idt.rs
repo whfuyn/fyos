@@ -1,6 +1,7 @@
 use super::*;
 use crate::bit_field::BitField;
 use crate::lazy_static;
+use crate::println;
 use crate::raw_handler;
 use crate::raw_handler_with_error_code;
 use crate::serial_println;
@@ -13,6 +14,7 @@ pub enum Exception {
     DivideByZero = 0,
     BreakPoint = 3,
     InvalidOpCode = 6,
+    DoubleFault = 8,
     PageFault = 14,
 }
 
@@ -29,6 +31,7 @@ lazy_static! {
             Exception::InvalidOpCode,
             raw_handler!(raw_invalid_opcode_handler -> !),
         );
+        idt.set_raw_handler_with_error_code(Exception::DoubleFault, raw_handler_with_error_code!(raw_double_fault_handler -> !));
         idt.set_raw_handler(
             Exception::PageFault,
             raw_handler_with_error_code!(raw_page_fault_handler -> !),
@@ -72,6 +75,13 @@ extern "C" fn raw_invalid_opcode_handler(stack_frame: &InterruptStackFrame) -> !
     loop {
         core::hint::spin_loop();
     }
+}
+
+extern "C" fn raw_double_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
+    panic!(
+        "EXCEPTION: double fault with error code `{:#x}` at {:#x}\n{:#?}",
+        error, stack_frame.instruction_pointer, stack_frame
+    );
 }
 
 extern "C" fn raw_page_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
@@ -249,13 +259,22 @@ mod tests {
     //     serial_println!("No haoye!");
     // }
 
+    // #[test_case]
+    // fn test_page_fault_handler() {
+    //     init_idt();
+    //     serial_println!("go!");
+    //     unsafe {
+    //         *(0xdeadbeef as *mut u8) = 42;
+    //     }
+    //     serial_println!("No haoye!");
+    // }
+
+    fn overflow() {
+        overflow();
+    }
+
     #[test_case]
-    fn test_page_fault_handler() {
-        init_idt();
-        serial_println!("go!");
-        unsafe {
-            *(0xdeadbeef as *mut u8) = 42;
-        }
-        serial_println!("No haoye!");
+    fn test_stackoverflow() {
+        overflow();
     }
 }
