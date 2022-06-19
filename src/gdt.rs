@@ -1,6 +1,6 @@
-use core::mem::size_of;
 use crate::lazy_static;
-use crate::x86_64::{PrivilegeLevel, SegmentSelector, VirtAddr};
+use crate::x86_64::{lgdt, DescriptorTablePointer, PrivilegeLevel, SegmentSelector, VirtAddr};
+use core::mem::size_of;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -24,6 +24,10 @@ lazy_static! {
         gdt.add_entry(Descriptor::tss_segment(&TSS));
         gdt
     };
+}
+
+pub fn init() {
+    GDT.load();
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -63,7 +67,7 @@ impl TaskStateSegment {
 }
 
 #[derive(Debug, Clone)]
-struct GlobalDescriptorTable {
+pub struct GlobalDescriptorTable {
     table: [u64; 8],
     len: usize,
 }
@@ -114,6 +118,19 @@ impl GlobalDescriptorTable {
         self.table[self.len] = value;
         self.len += 1;
         index
+    }
+
+    fn pointer(&self) -> DescriptorTablePointer {
+        DescriptorTablePointer {
+            base: VirtAddr::from_ptr(self.table.as_ptr()),
+            limit: (size_of::<u64>() * self.len - 1) as u16,
+        }
+    }
+
+    pub fn load(&'static self) {
+        // SAFETY:
+        // * valid & 'static
+        unsafe { lgdt(&self.pointer()) }
     }
 }
 

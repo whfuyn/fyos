@@ -1,5 +1,6 @@
 // See https://docs.rs/x86_64
 
+use crate::gdt::GlobalDescriptorTable;
 use core::arch::asm;
 use core::fmt;
 use core::ops;
@@ -106,6 +107,21 @@ pub unsafe fn lidt(idt: &DescriptorTablePointer) {
         asm!(
             "lidt [{}]",
             in(reg) idt,
+            options(readonly, nostack, preserves_flags)
+        );
+    }
+}
+
+/// Load global descriptor table
+/// SAFETY:
+/// * GDT is valid & 'static
+/// * There may be other requirements I don't know.
+#[inline]
+pub unsafe fn lgdt(gdt: &DescriptorTablePointer) {
+    unsafe {
+        asm!(
+            "lgdt [{}]",
+            in(reg) gdt,
             options(readonly, nostack, preserves_flags)
         );
     }

@@ -269,12 +269,12 @@ mod tests {
     //     serial_println!("No haoye!");
     // }
 
-    // fn overflow() {
-    //     overflow();
-    // }
+    fn overflow() {
+        overflow();
+    }
 
-    // #[test_case]
-    // fn test_stackoverflow() {
-    //     overflow();
-    // }
+    #[test_case]
+    fn test_stackoverflow() {
+        overflow();
+    }
 }

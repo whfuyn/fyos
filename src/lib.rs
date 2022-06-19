@@ -20,6 +20,7 @@ mod x86_64;
 pub mod bit_field;
 
 pub fn init() {
+    gdt::init();
     interrupts::init_idt();
 }
 
