@@ -6,11 +6,15 @@ use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInc
 
 /// An abstrction to allow set_bits to work with both the ranges and index.
 pub trait IntoSpan {
-    fn into_span(self) -> (u8, u8);
+    fn into_span<T: BitWidth>(self) -> (u8, u8);
 }
 
 impl IntoSpan for u8 {
-    fn into_span(self) -> (u8, u8) {
+    fn into_span<T: BitWidth>(self) -> (u8, u8) {
+        assert!(
+            (self as u32) < <T as BitWidth>::BITS,
+            "bit index exceed target bit width",
+        );
         (self, self)
     }
 }
@@ -18,8 +22,8 @@ impl IntoSpan for u8 {
 macro_rules! impl_into_span {
     ($ty:ty) => {
         impl IntoSpan for $ty {
-            fn into_span(self) -> (u8, u8) {
-                from_range(self)
+            fn into_span<T: BitWidth>(self) -> (u8, u8) {
+                from_range::<Self, T>(self)
             }
         }
     };
@@ -32,10 +36,29 @@ impl_into_span! {
     Range<u8>, RangeFrom<u8>, RangeFull, RangeTo<u8>, RangeInclusive<u8>, RangeToInclusive<u8>,
 }
 
+pub trait BitWidth {
+    const BITS: u32;
+}
+
+macro_rules! impl_bit_width {
+    ($ty:ty) => {
+        impl BitWidth for $ty {
+            const BITS: u32 = <$ty>::BITS;
+        }
+    };
+    ($($ty:ty),*$(,)?) => {
+        $(impl_bit_width!($ty);)*
+    };
+}
+
+impl_bit_width! {
+    u8, u16, u32, u64,
+}
+
 /// Turn various types of range into span.
-/// # Panics
-/// Panics if the range is invalid for u16 bits.
-fn from_range<R: RangeBounds<u8>>(range: R) -> (u8, u8) {
+/// # Panic
+/// Panics if the range isn't valid or bits exceed the target width.
+fn from_range<R: RangeBounds<u8>, T: BitWidth>(range: R) -> (u8, u8) {
     const INVALID_BIT_RANGE: &str = "invalid bit range";
 
     let start = match range.start_bound() {
@@ -46,10 +69,10 @@ fn from_range<R: RangeBounds<u8>>(range: R) -> (u8, u8) {
     let end = match range.end_bound() {
         Bound::Included(&i) => i,
         Bound::Excluded(&i) => i.checked_sub(1).expect(INVALID_BIT_RANGE),
-        Bound::Unbounded => (u16::BITS - 1) as u8,
+        Bound::Unbounded => (<T as BitWidth>::BITS - 1) as u8,
     };
     assert!(
-        start <= end && end < u16::BITS as u8,
+        start <= end && end < <T as BitWidth>::BITS as u8,
         "{}",
         INVALID_BIT_RANGE
     );
@@ -61,30 +84,43 @@ pub trait BitField: Sized {
     fn set_bits<R: IntoSpan>(&mut self, range: R, bits: Self);
 }
 
-// This impl depends on the size of u16. We must be careful not to
-// overflow when migrate it to other integral types.
-impl BitField for u16 {
-    /// Get bit pattern in range.
-    /// # Panics
-    /// Panics if the range isn't valid
-    fn get_bits<R: IntoSpan>(&self, range: R) -> Self {
-        let (start, end) = range.into_span();
-        // Get a full mask for the range span.
-        let mask: u16 = ((1u32 << (end - start + 1)) - 1) as u16;
-        (*self >> start) & mask
-    }
+macro_rules! impl_bitfield {
+    ($ty:ty) => {
+        impl BitField for $ty {
+            /// Get bit pattern in range.
+            /// # Panics
+            /// Panics if the range isn't valid
+            fn get_bits<R: IntoSpan>(&self, range: R) -> Self {
+                let (start, end) = range.into_span::<$ty>();
+                // Get a full mask for the range span.
+                let mask: $ty = 1u64.checked_shl((end - start + 1) as u32)
+                        .map(|r| r - 1)
+                        .unwrap_or(u64::MAX) as $ty;
+                (*self >> start) & mask
+            }
 
-    /// Set self's bit pattern in range to bits.
-    /// # Panics
-    /// Panics if the range isn't valid or bits excess the range.
-    fn set_bits<R: IntoSpan>(&mut self, range: R, bits: u16) {
-        let (start, end) = range.into_span();
-        // Get a full mask for the range span.
-        let mask: u16 = ((1u32 << (end - start + 1)) - 1) as u16;
-        assert!(bits & !mask == 0, "bits fall outside of range");
-        // Clear that range and put bits in.
-        *self = (*self & !(mask << start)) | bits << start;
-    }
+            /// Set self's bit pattern in range to bits.
+            /// # Panics
+            /// Panics if the range isn't valid or given bits excess the range.
+            fn set_bits<R: IntoSpan>(&mut self, range: R, bits: $ty) {
+                let (start, end) = range.into_span::<$ty>();
+                // Get a full mask for the range span.
+                let mask: $ty = 1u64.checked_shl((end - start + 1) as u32)
+                        .map(|r| r - 1)
+                        .unwrap_or(u64::MAX) as $ty;
+                assert!(bits & !mask == 0, "bits fall outside of range");
+                // Clear that range and put bits in.
+                *self = (*self & !(mask << start)) | bits << start;
+            }
+        }
+    };
+    ($($ty:ty),*$(,)?) => {
+        $(impl_bitfield!($ty);)*
+    };
+}
+
+impl_bitfield! {
+    u8, u16, u32, u64,
 }
 
 #[cfg(test)]

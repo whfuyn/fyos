@@ -22,6 +22,6 @@ fn test_bit_field_range_protect() {
         "{}...\t",
         core::any::type_name_of_val(&test_bit_field_range_protect)
     );
-    let mut bits = 0;
+    let mut bits = 0u16;
     bits.set_bits(1..=2, 0b111);
 }
