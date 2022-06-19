@@ -23,13 +23,13 @@ macro_rules! impl_into_span {
             }
         }
     };
-    ($($ty:ty),*) => {
+    ($($ty:ty),*$(,)?) => {
         $(impl_into_span!($ty);)*
-    }
+    };
 }
 
 impl_into_span! {
-    Range<u8>, RangeFrom<u8>, RangeFull, RangeTo<u8>, RangeInclusive<u8>, RangeToInclusive<u8>
+    Range<u8>, RangeFrom<u8>, RangeFull, RangeTo<u8>, RangeInclusive<u8>, RangeToInclusive<u8>,
 }
 
 /// Turn various types of range into span.
