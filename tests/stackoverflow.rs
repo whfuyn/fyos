@@ -21,7 +21,12 @@ fn test_stackoverflow() {
     init();
     #[allow(unconditional_recursion)]
     fn overflow() {
-        overflow()
+        let i = 42;
+        overflow();
+        // Prevent tail recursion optimization
+        unsafe {
+            (&i as *const i32).read_volatile();
+        }
     }
     serial_print!("{}...\t", core::any::type_name_of_val(&test_stackoverflow));
     overflow();
