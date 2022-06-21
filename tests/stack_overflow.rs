@@ -47,12 +47,12 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    test_stackoverflow();
+    test_stack_overflow();
     serial_println!("[Test did not panic]");
     exit_qemu(QemuExitCode::Failed);
 }
 
-fn test_stackoverflow() {
+fn test_stack_overflow() {
     init_gdt();
     TEST_IDT.load();
     #[allow(unconditional_recursion)]
@@ -64,6 +64,6 @@ fn test_stackoverflow() {
             (&i as *const i32).read_volatile();
         }
     }
-    serial_print!("{}...\t", core::any::type_name_of_val(&test_stackoverflow));
+    serial_print!("{}...\t", core::any::type_name_of_val(&test_stack_overflow));
     overflow();
 }
