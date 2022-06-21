@@ -1,6 +1,6 @@
 // See https://docs.rs/x86_64
 
-use crate::gdt::GlobalDescriptorTable;
+use crate::gdt::{GlobalDescriptorTable, TaskStateSegment};
 use core::arch::asm;
 use core::fmt;
 use core::ops;
@@ -8,7 +8,8 @@ use core::ops;
 pub type RawHandlerFunc = unsafe extern "C" fn() -> !;
 pub type RawHandlerFuncWithErrorCode = unsafe extern "C" fn() -> !;
 pub type HandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame);
-pub type HandlerFuncWithErrorCode = extern "x86-interrupt" fn(InterruptStackFrame);
+pub type HandlerFuncWithErrorCode =
+    extern "x86-interrupt" fn(InterruptStackFrame, crate::interrupts::ErrorCode);
 
 #[repr(u8)]
 pub enum PrivilegeLevel {
@@ -21,6 +22,24 @@ pub enum PrivilegeLevel {
 pub struct CS;
 
 impl CS {
+    /// SAFETY:
+    /// * input must be valid for cs.
+    pub unsafe fn set_reg(cs: SegmentSelector) {
+        unsafe {
+            asm!(
+                "push {sel}",
+                // 1f means label 1 searched forward
+                "lea {tmp}, [1f + rip]",
+                "push {tmp}",
+                "retfq",
+                "1:",
+                sel = in(reg) u64::from(cs.0),
+                tmp = lateout(reg) _,
+                options(preserves_flags),
+            );
+        }
+    }
+
     pub fn get_reg() -> SegmentSelector {
         let mut cs: u16;
         unsafe {
@@ -192,4 +211,14 @@ pub struct InterruptStackFrameValue {
     pub cpu_flags: u64,
     pub stack_pointer: VirtAddr,
     pub stack_segment: u64,
+}
+
+/// SAFETY:
+/// * input is an valid tss
+pub unsafe fn load_tss(tss: SegmentSelector) {
+    unsafe {
+        asm!(
+            "ltr {:x}", in(reg) tss.0, options(nostack, preserves_flags)
+        )
+    }
 }

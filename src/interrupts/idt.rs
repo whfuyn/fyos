@@ -1,5 +1,6 @@
 use super::*;
 use crate::bit_field::BitField;
+use crate::gdt;
 use crate::lazy_static;
 use crate::println;
 use crate::raw_handler;
@@ -31,13 +32,34 @@ lazy_static! {
             Exception::InvalidOpCode,
             raw_handler!(raw_invalid_opcode_handler -> !),
         );
-        idt.set_raw_handler_with_error_code(Exception::DoubleFault, raw_handler_with_error_code!(raw_double_fault_handler -> !));
+
+        // Work around unaligned packed field..
+        {
+            let mut double_fault_ent = idt.set_raw_handler_with_error_code(Exception::DoubleFault, raw_handler_with_error_code!(raw_double_fault_handler -> !));
+            // let mut double_fault_ent = idt.set_handler_with_error_code(Exception::DoubleFault, double_fault_handler);
+            let mut options = double_fault_ent.options;
+            unsafe {
+                options.set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+            }
+            double_fault_ent.options = options;
+        }
+
         idt.set_raw_handler(
             Exception::PageFault,
             raw_handler_with_error_code!(raw_page_fault_handler -> !),
         );
         idt
     };
+}
+
+extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, error: ErrorCode) {
+    serial_println!(
+        "EXCEPTION: double fault with error code `{:#x}` at {:#x}\n{:#?}",
+        error,
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
+    loop {}
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
@@ -78,6 +100,12 @@ extern "C" fn raw_invalid_opcode_handler(stack_frame: &InterruptStackFrame) -> !
 }
 
 extern "C" fn raw_double_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
+    serial_println!(
+        "EXCEPTION: double fault with error code `{:#x}` at {:#x}\n{:#?}",
+        error,
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
     panic!(
         "EXCEPTION: double fault with error code `{:#x}` at {:#x}\n{:#?}",
         error, stack_frame.instruction_pointer, stack_frame
@@ -222,7 +250,9 @@ impl EntryOptions {
         self
     }
 
-    pub fn set_stack_index(&mut self, index: u16) -> &mut Self {
+    /// SAFETY:
+    /// * stack index is a valid and not used by other interrupts.
+    pub unsafe fn set_stack_index(&mut self, index: u16) -> &mut Self {
         self.0.set_bits(0..=2, index);
         self
     }
@@ -231,6 +261,7 @@ impl EntryOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gdt;
     use crate::serial_println;
     use crate::x86_64;
 
@@ -269,12 +300,14 @@ mod tests {
     //     serial_println!("No haoye!");
     // }
 
-    fn overflow() {
-        overflow();
-    }
-
     #[test_case]
     fn test_stackoverflow() {
+        gdt::init();
+        init_idt();
+        #[allow(unconditional_recursion)]
+        fn overflow() {
+            overflow();
+        }
         overflow();
     }
 }

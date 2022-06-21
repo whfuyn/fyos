@@ -1,5 +1,8 @@
 use crate::lazy_static;
-use crate::x86_64::{lgdt, DescriptorTablePointer, PrivilegeLevel, SegmentSelector, VirtAddr};
+use crate::serial_println;
+use crate::x86_64::{
+    lgdt, load_tss, DescriptorTablePointer, PrivilegeLevel, SegmentSelector, VirtAddr, CS,
+};
 use core::mem::size_of;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
@@ -18,21 +21,33 @@ lazy_static! {
         tss
     };
 
-    static ref GDT: GlobalDescriptorTable = {
+    // Due to the implementation, we cannot define multiple statics like
+    // static ref (GDT, CODE_SELECTOR, TSS_SELECTOR) = {..};
+    static ref GDT: (GlobalDescriptorTable, Selectors) = {
         let mut gdt = GlobalDescriptorTable::new();
-        gdt.add_entry(Descriptor::kernel_segment());
-        gdt.add_entry(Descriptor::tss_segment(&TSS));
-        gdt
+        let code_selector = gdt.add_entry(Descriptor::kernel_segment());
+        let tss_selector = gdt.add_entry(Descriptor::tss_segment(&TSS));
+        (gdt, Selectors{code_selector, tss_selector})
     };
 }
 
+struct Selectors {
+    code_selector: SegmentSelector,
+    tss_selector: SegmentSelector,
+}
+
 pub fn init() {
-    GDT.load();
+    GDT.0.load();
+    // SAFETY: code and tss selector are valid.
+    unsafe {
+        CS::set_reg(GDT.1.code_selector);
+        load_tss(GDT.1.tss_selector);
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed(4))]
-struct TaskStateSegment {
+pub struct TaskStateSegment {
     reserved_1: u32,
     /// The full 64-bit canonical forms of the stack pointers (RSP) for privilege levels 0-2.
     pub privilege_stack_table: [VirtAddr; 3],
@@ -113,9 +128,10 @@ impl GlobalDescriptorTable {
         SegmentSelector::new(index as u16, rpl)
     }
 
+    #[inline]
     fn push(&mut self, value: u64) -> usize {
         let index = self.len;
-        self.table[self.len] = value;
+        self.table[index] = value;
         self.len += 1;
         index
     }
@@ -149,13 +165,29 @@ impl DescriptorFlags {
     // TODO: What does below x86_64 comment mean?
     // * _Setting_ this bit in software prevents GDT writes on first use.
     pub const ACCESSED: u64 = 1 << 40;
+
+    // --- It's said to be ignored in 64-bit
+    pub const WRITABLE: u64 = 1 << 41;
+    pub const GRANULARITY: u64 = 1 << 55;
+    pub const LIMIT_0_15: u64 = 0xffff;
+    pub const LIMIT_16_19: u64 = 0xf << 48;
+    // ---
+
+    pub const EXECUTABLE: u64 = 1 << 43;
     pub const USER_SEGMENT: u64 = 1 << 44;
     pub const DPL_RING_3: u64 = 3 << 45;
     pub const PRESENT: u64 = 1 << 47;
+    pub const LONG_MODE: u64 = 1 << 53;
 
-    pub const COMMON: u64 = Self::USER_SEGMENT | Self::ACCESSED | Self::PRESENT;
+    pub const COMMON: u64 = Self::USER_SEGMENT
+        | Self::PRESENT
+        | Self::WRITABLE
+        | Self::ACCESSED
+        | Self::LIMIT_0_15
+        | Self::LIMIT_16_19
+        | Self::GRANULARITY;
 
-    pub const KERNEL_CODE64: u64 = Self::COMMON;
+    pub const KERNEL_CODE64: u64 = Self::COMMON | Self::LONG_MODE | Self::EXECUTABLE;
 }
 
 impl Descriptor {
@@ -181,5 +213,15 @@ impl Descriptor {
         high.set_bits(0..32, ptr.get_bits(32..64));
 
         Descriptor::SystemSegment(low, high)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test_case]
+    fn test_flags() {
+        assert_eq!(DescriptorFlags::KERNEL_CODE64, 0x00af9b000000ffffu64);
     }
 }

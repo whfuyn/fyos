@@ -84,7 +84,7 @@ pub trait BitField: Sized {
     fn set_bits<R: IntoSpan>(&mut self, range: R, bits: Self);
 }
 
-macro_rules! impl_bitfield {
+macro_rules! impl_bit_field {
     ($ty:ty) => {
         impl BitField for $ty {
             /// Get bit pattern in range.
@@ -115,11 +115,11 @@ macro_rules! impl_bitfield {
         }
     };
     ($($ty:ty),*$(,)?) => {
-        $(impl_bitfield!($ty);)*
+        $(impl_bit_field!($ty);)*
     };
 }
 
-impl_bitfield! {
+impl_bit_field! {
     u8, u16, u32, u64,
 }
 
