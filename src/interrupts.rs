@@ -1,4 +1,4 @@
-mod idt;
+pub mod idt;
 
 use core::fmt;
 pub use idt::init_idt;

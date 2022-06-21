@@ -9,12 +9,12 @@
 #![feature(asm_sym)]
 
 pub mod gdt;
-mod interrupts;
-mod lazy_static;
+pub mod interrupts;
+pub mod lazy_static;
 pub mod screen;
 pub mod serial;
-mod spinlock;
-mod x86_64;
+pub mod spinlock;
+pub mod x86_64;
 
 // TODO: how to make it pub only to should-panic tests?
 pub mod bit_field;

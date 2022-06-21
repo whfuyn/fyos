@@ -20,8 +20,8 @@ pub enum Exception {
 }
 
 lazy_static! {
-    static ref IDT: Idt = {
-        let mut idt = Idt::new();
+    static ref IDT: InterruptDescriptorTable = {
+        let mut idt = InterruptDescriptorTable::new();
         idt.set_raw_handler(
             Exception::DivideByZero,
             raw_handler!(raw_divide_by_zero_handler -> !),
@@ -33,15 +33,13 @@ lazy_static! {
             raw_handler!(raw_invalid_opcode_handler -> !),
         );
 
-        // Work around unaligned packed field..
-        {
-            let mut double_fault_ent = idt.set_raw_handler_with_error_code(Exception::DoubleFault, raw_handler_with_error_code!(raw_double_fault_handler -> !));
-            // let mut double_fault_ent = idt.set_handler_with_error_code(Exception::DoubleFault, double_fault_handler);
-            let mut options = double_fault_ent.options;
-            unsafe {
-                options.set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
-            }
-            double_fault_ent.options = options;
+        // SAFETY:
+        // * The stack index points to a valid stack in GDT.
+        // * It's not used by other interrupt handler.
+        unsafe {
+            idt
+                .set_raw_handler_with_error_code(Exception::DoubleFault, raw_handler_with_error_code!(raw_double_fault_handler -> !))
+                .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
         }
 
         idt.set_raw_handler(
@@ -142,11 +140,11 @@ pub fn init_idt() {
 }
 
 #[repr(transparent)]
-pub struct Idt([Entry; 16]);
+pub struct InterruptDescriptorTable([Entry; 16]);
 
-impl Idt {
-    pub fn new() -> Idt {
-        Idt([Entry::missing(); 16])
+impl InterruptDescriptorTable {
+    pub fn new() -> InterruptDescriptorTable {
+        InterruptDescriptorTable([Entry::missing(); 16])
     }
 
     // We don't return a &mut EntryOptions because ref to packed struct's field
@@ -184,8 +182,8 @@ impl Idt {
 
     pub fn load(&'static self) {
         let ptr = DescriptorTablePointer {
-            limit: (core::mem::size_of::<Idt>() - 1) as u16,
-            base: VirtAddr(self as *const Idt as u64),
+            limit: (core::mem::size_of::<InterruptDescriptorTable>() - 1) as u16,
+            base: VirtAddr(self as *const InterruptDescriptorTable as u64),
         };
         // SAFETY:
         // * The handler is valid idt and of 'static.
@@ -228,6 +226,40 @@ impl Entry {
             pointer_high: 0,
             reserved: 0,
         }
+    }
+
+    // Those wrapper methods are to work around unaligned packed fields.
+
+    pub fn set_present(&mut self, present: bool) -> &mut Self {
+        let mut opts = self.options;
+        opts.set_present(present);
+        self.options = opts;
+        self
+    }
+
+    pub fn disable_interrupts(&mut self, disable: bool) -> &mut Self {
+        let mut opts = self.options;
+        opts.disable_interrupts(disable);
+        self.options = opts;
+        self
+    }
+
+    pub fn set_privilege_level(&mut self, dpl: u16) -> &mut Self {
+        let mut opts = self.options;
+        opts.set_privilege_level(dpl);
+        self.options = opts;
+        self
+    }
+
+    /// SAFETY:
+    /// * stack index is a valid and not used by other interrupts.
+    pub unsafe fn set_stack_index(&mut self, index: u16) -> &mut Self {
+        let mut opts = self.options;
+        unsafe {
+            opts.set_stack_index(index);
+        }
+        self.options = opts;
+        self
     }
 }
 
@@ -272,6 +304,7 @@ impl EntryOptions {
         self
     }
 }
+
 
 #[cfg(test)]
 mod tests {
