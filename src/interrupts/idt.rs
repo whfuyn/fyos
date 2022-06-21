@@ -2,7 +2,6 @@ use super::*;
 use crate::bit_field::BitField;
 use crate::gdt;
 use crate::lazy_static;
-use crate::println;
 use crate::raw_handler;
 use crate::raw_handler_with_error_code;
 use crate::serial_println;
@@ -16,6 +15,7 @@ pub enum Exception {
     BreakPoint = 3,
     InvalidOpCode = 6,
     DoubleFault = 8,
+    GeneralProtectionFault = 13,
     PageFault = 14,
 }
 
@@ -44,6 +44,10 @@ lazy_static! {
             double_fault_ent.options = options;
         }
 
+        idt.set_raw_handler(
+            Exception::GeneralProtectionFault,
+            raw_handler_with_error_code!(raw_general_protection_fault_handler -> !),
+        );
         idt.set_raw_handler(
             Exception::PageFault,
             raw_handler_with_error_code!(raw_page_fault_handler -> !),
@@ -81,7 +85,7 @@ extern "C" fn raw_breakpoint_handler(stack_frame: &InterruptStackFrame) {
 }
 
 extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame) -> ! {
-    serial_println!("looks at the stack frame!");
+    serial_println!("EXCEPTION: divide-by-zero");
     serial_println!("{:#?}", stack_frame);
     loop {
         core::hint::spin_loop();
@@ -100,16 +104,22 @@ extern "C" fn raw_invalid_opcode_handler(stack_frame: &InterruptStackFrame) -> !
 }
 
 extern "C" fn raw_double_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
-    serial_println!(
-        "EXCEPTION: double fault with error code `{:#x}` at {:#x}\n{:#?}",
-        error,
-        stack_frame.instruction_pointer,
-        stack_frame
-    );
     panic!(
         "EXCEPTION: double fault with error code `{:#x}` at {:#x}\n{:#?}",
         error, stack_frame.instruction_pointer, stack_frame
     );
+}
+
+extern "C" fn raw_general_protection_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
+    serial_println!(
+        "EXCEPTION: general protection fault with error code `{:#x}` at {:#x}\n{:#?}",
+        error,
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
+    loop {
+        core::hint::spin_loop();
+    }
 }
 
 extern "C" fn raw_page_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
@@ -265,14 +275,14 @@ mod tests {
     use crate::serial_println;
     use crate::x86_64;
 
-    #[test_case]
-    fn test_breakpoint_handler() {
-        init_idt();
-        serial_println!("go!");
-        x86_64::int3();
-        crate::println!("haoye!");
-        serial_println!("haoye!");
-    }
+    // #[test_case]
+    // fn test_breakpoint_handler() {
+    //     init_idt();
+    //     serial_println!("go!");
+    //     x86_64::int3();
+    //     crate::println!("haoye!");
+    //     serial_println!("haoye!");
+    // }
 
     // #[test_case]
     // fn test_divid_by_zero_handler() {
@@ -292,11 +302,20 @@ mod tests {
 
     // #[test_case]
     // fn test_page_fault_handler() {
+    //     gdt::init();
     //     init_idt();
     //     serial_println!("go!");
     //     unsafe {
     //         *(0xdeadbeef as *mut u8) = 42;
     //     }
+    //     serial_println!("No haoye!");
+    // }
+
+    // #[test_case]
+    // fn test_double_fault_handler() {
+    //     gdt::init();
+    //     init_idt();
+    //     divide_by_zero();
     //     serial_println!("No haoye!");
     // }
 

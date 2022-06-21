@@ -110,6 +110,7 @@ impl fmt::UpperHex for VirtAddr {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 #[repr(C, packed(2))]
 pub struct DescriptorTablePointer {
     pub limit: u16,
