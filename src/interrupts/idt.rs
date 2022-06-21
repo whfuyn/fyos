@@ -110,7 +110,10 @@ extern "C" fn raw_double_fault_handler(stack_frame: &InterruptStackFrame, error:
     );
 }
 
-extern "C" fn raw_general_protection_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
+extern "C" fn raw_general_protection_fault_handler(
+    stack_frame: &InterruptStackFrame,
+    error: ErrorCode,
+) -> ! {
     serial_println!(
         "EXCEPTION: general protection fault with error code `{:#x}` at {:#x}\n{:#?}",
         error,
@@ -320,15 +323,4 @@ mod tests {
     //     divide_by_zero();
     //     serial_println!("No haoye!");
     // }
-
-    #[test_case]
-    fn test_stackoverflow() {
-        gdt::init();
-        init_idt();
-        #[allow(unconditional_recursion)]
-        fn overflow() {
-            overflow();
-        }
-        overflow();
-    }
 }
