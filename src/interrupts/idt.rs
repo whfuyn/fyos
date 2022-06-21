@@ -263,7 +263,9 @@ impl EntryOptions {
     /// SAFETY:
     /// * stack index is a valid and not used by other interrupts.
     pub unsafe fn set_stack_index(&mut self, index: u16) -> &mut Self {
-        self.0.set_bits(0..=2, index);
+        // The hardware IST index starts at 1, but our software IST index
+        // starts at 0. Therefore we need to add 1 here.
+        self.0.set_bits(0..=2, index + 1);
         self
     }
 }
