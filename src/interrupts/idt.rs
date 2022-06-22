@@ -313,14 +313,13 @@ mod tests {
     use crate::serial_println;
     use crate::x86_64;
 
-    // #[test_case]
-    // fn test_breakpoint_handler() {
-    //     init_idt();
-    //     serial_println!("go!");
-    //     x86_64::int3();
-    //     crate::println!("haoye!");
-    //     serial_println!("haoye!");
-    // }
+    #[test_case]
+    fn test_breakpoint_handler() {
+        init_idt();
+        serial_println!("go!");
+        x86_64::int3();
+        serial_println!("haoye!");
+    }
 
     // #[test_case]
     // fn test_divid_by_zero_handler() {

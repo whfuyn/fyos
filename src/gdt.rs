@@ -1,5 +1,4 @@
 use crate::lazy_static;
-use crate::serial_println;
 use crate::x86_64::{
     lgdt, load_tss, DescriptorTablePointer, PrivilegeLevel, SegmentSelector, VirtAddr, CS,
 };
@@ -90,9 +89,11 @@ pub struct GlobalDescriptorTable {
 impl GlobalDescriptorTable {
     #[inline]
     pub const fn new() -> Self {
-        // TODO: why is len 1?
         Self {
             table: [0; 8],
+            // The first entry in the GDT (Entry 0) should always be null
+            // and subsequent entries should be used instead.
+            // See https://wiki.osdev.org/Global_Descriptor_Table#Table
             len: 1,
         }
     }
@@ -139,6 +140,11 @@ impl GlobalDescriptorTable {
     fn pointer(&self) -> DescriptorTablePointer {
         DescriptorTablePointer {
             base: VirtAddr::from_ptr(self.table.as_ptr()),
+            // The size of the table in bytes subtracted by 1. This subtraction
+            // occurs because the maximum value of Size is 65535, while the GDT
+            // can be up to 65536 bytes in length (8192 entries). Further, no GDT
+            // can have a size of 0 bytes. 
+            // See https://wiki.osdev.org/Global_Descriptor_Table#GDTR
             limit: (size_of::<u64>() * self.len - 1) as u16,
         }
     }

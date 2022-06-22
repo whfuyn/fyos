@@ -1,6 +1,5 @@
 // See https://docs.rs/x86_64
 
-use crate::gdt::{GlobalDescriptorTable, TaskStateSegment};
 use core::arch::asm;
 use core::fmt;
 use core::ops;
