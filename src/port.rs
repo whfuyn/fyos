@@ -6,17 +6,19 @@ pub mod access {
     pub trait Readable {}
     pub trait Writable {}
 
-    pub struct PortReadWrite;
+    pub struct ReadWrite(());
 
-    impl Readable for PortReadWrite {}
-    impl Writable for PortReadWrite {}
+    impl Readable for ReadWrite {}
+    impl Writable for ReadWrite {}
 
-    pub struct PortReadOnly;
-    impl Readable for PortReadOnly {}
+    pub struct ReadOnly(());
+    impl Readable for ReadOnly {}
 
-    pub struct PortWriteOnly;
-    impl Writable for PortWriteOnly {}
+    pub struct WriteOnly(());
+    impl Writable for WriteOnly {}
 }
+
+pub type Port<T> = PortGeneric<T, access::ReadWrite>;
 
 /// T is the byte length(u8, u16, u32) we read from or write to this port.
 /// A is the access permission of the port.
@@ -25,15 +27,15 @@ pub struct PortGeneric<T, A> {
     _phantom: PhantomData<(T, A)>,
 }
 
-pub trait Write<T> {
+pub trait PortWrite<T> {
     fn write(&self, value: T);
 }
 
-pub trait Read<T> {
+pub trait PortRead<T> {
     fn read(&self) -> T;
 }
 
-impl<A: access::Writable> Write<u8> for PortGeneric<u8, A> {
+impl<A: access::Writable> PortWrite<u8> for PortGeneric<u8, A> {
     fn write(&self, value: u8) {
         // See https://www.felixcloutier.com/x86/out
         // Safety:
@@ -49,7 +51,7 @@ impl<A: access::Writable> Write<u8> for PortGeneric<u8, A> {
     }
 }
 
-impl<A: access::Writable> Write<u16> for PortGeneric<u16, A> {
+impl<A: access::Writable> PortWrite<u16> for PortGeneric<u16, A> {
     fn write(&self, value: u16) {
         unsafe {
             asm!(
@@ -62,7 +64,7 @@ impl<A: access::Writable> Write<u16> for PortGeneric<u16, A> {
     }
 }
 
-impl<A: access::Writable> Write<u32> for PortGeneric<u32, A> {
+impl<A: access::Writable> PortWrite<u32> for PortGeneric<u32, A> {
     fn write(&self, value: u32) {
         unsafe {
             asm!(
@@ -75,7 +77,7 @@ impl<A: access::Writable> Write<u32> for PortGeneric<u32, A> {
     }
 }
 
-impl<A: access::Readable> Read<u8> for PortGeneric<u8, A> {
+impl<A: access::Readable> PortRead<u8> for PortGeneric<u8, A> {
     fn read(&self) -> u8 {
         // Looks like both `let mut` and `let` will work.
         let value: u8;
@@ -91,7 +93,7 @@ impl<A: access::Readable> Read<u8> for PortGeneric<u8, A> {
     }
 }
 
-impl<A: access::Readable> Read<u16> for PortGeneric<u16, A> {
+impl<A: access::Readable> PortRead<u16> for PortGeneric<u16, A> {
     fn read(&self) -> u16 {
         let value: u16;
         unsafe {
@@ -106,7 +108,7 @@ impl<A: access::Readable> Read<u16> for PortGeneric<u16, A> {
     }
 }
 
-impl<A: access::Readable> Read<u32> for PortGeneric<u32, A> {
+impl<A: access::Readable> PortRead<u32> for PortGeneric<u32, A> {
     fn read(&self) -> u32 {
         let value: u32;
         unsafe {
