@@ -143,7 +143,7 @@ impl GlobalDescriptorTable {
             // The size of the table in bytes subtracted by 1. This subtraction
             // occurs because the maximum value of Size is 65535, while the GDT
             // can be up to 65536 bytes in length (8192 entries). Further, no GDT
-            // can have a size of 0 bytes. 
+            // can have a size of 0 bytes.
             // See https://wiki.osdev.org/Global_Descriptor_Table#GDTR
             limit: (size_of::<u64>() * self.len - 1) as u16,
         }
