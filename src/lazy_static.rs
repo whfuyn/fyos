@@ -36,7 +36,7 @@ impl<T: 'static, F: FnOnce() -> T> Drop for LazyStatic<T, F> {
     fn drop(&mut self) {
         match *self.init_state.get_mut() {
             InitStage::Uninit | InitStage::Initing => (),
-            // SAFETY:
+            // Safety:
             // - We have unique access to self.value on drop, and
             // that value has been inited.
             InitStage::Inited => unsafe {
@@ -62,7 +62,7 @@ impl<T: 'static, F: FnOnce() -> T> Deref for LazyStatic<T, F> {
                 Ordering::Acquire,
                 Ordering::Acquire,
             ) {
-                // SAFETY:
+                // Safety:
                 // - We have unique access to both self.value and self.init_fn.
                 // - This is the only time that self.init_fn's ownership got taken.
                 Ok(_) => unsafe {
@@ -74,7 +74,7 @@ impl<T: 'static, F: FnOnce() -> T> Deref for LazyStatic<T, F> {
                 Err(InitStage::Initing) => {
                     core::hint::spin_loop();
                 }
-                // SAFETY:
+                // Safety:
                 // - There won't be any ohter mutable refs to self.value, and
                 // - The value has been initialized.
                 Err(InitStage::Inited) => unsafe {
@@ -86,8 +86,8 @@ impl<T: 'static, F: FnOnce() -> T> Deref for LazyStatic<T, F> {
     }
 }
 
-// TODO: check SAFETY
-// SAFETY: I'm not sure...
+// TODO: check Safety
+// Safety: I'm not sure...
 unsafe impl<T: Send + 'static, F: Send + FnOnce() -> T> Send for LazyStatic<T, F> {}
 unsafe impl<T: Send + Sync + 'static, F: Send + Sync + FnOnce() -> T> Sync for LazyStatic<T, F> {}
 

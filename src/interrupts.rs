@@ -32,11 +32,11 @@ macro_rules! raw_handler {
         $crate::raw_handler!(@INNER $name)
     }};
     (@INNER $name: ident) => {{
-        // SAFETY:
+        // Safety:
         // * Must be used as an interrupt handler.
         #[naked]
         unsafe extern "C" fn wrapper() -> ! {
-            // SAFETY:
+            // Safety:
             // * All scratch registers are saved and restored.
             // * Handler signature has been checked above.
             unsafe {
@@ -89,11 +89,11 @@ macro_rules! raw_handler_with_error_code {
         $crate::raw_handler_with_error_code!(@INNER $name)
     }};
     (@INNER $name: ident) => {{
-        // SAFETY:
+        // Safety:
         // * Must be used as an interrupt handler which has an error code.
         #[naked]
         unsafe extern "C" fn wrapper() -> ! {
-            // SAFETY:
+            // Safety:
             // * All scratch registers are saved and restored.
             // * Handler signature has been checked above.
             unsafe {

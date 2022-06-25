@@ -66,7 +66,7 @@ pub enum QemuExitCode {
 
 /// Tell QEMU we are about to exit.
 pub fn exit_qemu(exit_code: QemuExitCode) -> ! {
-    // SAFETY:
+    // Safety:
     // Write exit code to QEMU's isa-debug-exit device.
     unsafe {
         // See https://doc.rust-lang.org/nightly/rust-by-example/unsafe/asm.html

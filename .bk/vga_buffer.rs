@@ -174,7 +174,7 @@ impl VgaBuffer {
 
         assert!(rows < VGA_BUFFER_ROWS);
         assert!(cols < VGA_BUFFER_COLUMNS);
-        // SAFETY:
+        // Safety:
         // The addr we are writing to is indeed inside the vga's buffer,
         // which we have checked above.
         unsafe {

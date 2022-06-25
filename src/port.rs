@@ -36,7 +36,7 @@ pub trait Read<T> {
 impl<A: access::Writable> Write<u8> for PortGeneric<u8, A> {
     fn write(&self, value: u8) {
         // See https://www.felixcloutier.com/x86/out
-        // SAFETY:
+        // Safety:
         // TODO: in what circumstance will it be unsound?
         unsafe {
             asm!(

@@ -21,7 +21,7 @@ pub enum PrivilegeLevel {
 pub struct CS;
 
 impl CS {
-    /// SAFETY:
+    /// Safety:
     /// * input must be valid for cs.
     pub unsafe fn set_reg(cs: SegmentSelector) {
         unsafe {
@@ -117,7 +117,7 @@ pub struct DescriptorTablePointer {
 }
 
 /// Load interrupt descriptor table
-/// SAFETY:
+/// Safety:
 /// * Handler address must be valid.
 /// * There may be other requirements I don't know.
 #[inline]
@@ -132,7 +132,7 @@ pub unsafe fn lidt(idt: &DescriptorTablePointer) {
 }
 
 /// Load global descriptor table
-/// SAFETY:
+/// Safety:
 /// * GDT is valid & 'static
 /// * There may be other requirements I don't know.
 #[inline]
@@ -173,7 +173,7 @@ pub fn ud2() {
     }
 }
 
-// /// SAFETY:
+// /// Safety:
 // /// * It's called in the begining of a raw interrupt handler.
 // #[inline(always)]
 // pub unsafe fn load_interrupt_stack_frame<'a>() -> &'a InterruptStackFrame {
@@ -213,7 +213,7 @@ pub struct InterruptStackFrameValue {
     pub stack_segment: u64,
 }
 
-/// SAFETY:
+/// Safety:
 /// * input is an valid tss
 pub unsafe fn load_tss(tss: SegmentSelector) {
     unsafe {

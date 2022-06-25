@@ -52,19 +52,19 @@ impl<'a, T: ?Sized> Deref for SpinLockGuard<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        // SAFETY: This is guarded by the atomic flag `locked` in the SpinLock.
+        // Safety: This is guarded by the atomic flag `locked` in the SpinLock.
         unsafe { &*self.0.value.get() as &Self::Target }
     }
 }
 
 impl<'a, T: ?Sized> DerefMut for SpinLockGuard<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        // SAFETY: This is guarded by the atomic flag `locked` in the SpinLock.
+        // Safety: This is guarded by the atomic flag `locked` in the SpinLock.
         unsafe { &mut *self.0.value.get() as &mut Self::Target }
     }
 }
 
-// SAFETY:
+// Safety:
 // Thoes conditions are copied from std Mutex. I'm not 100% sure why T: Send is
 // needed and sufficient.
 // But thread_local data might be an example that !Send data should not be Send

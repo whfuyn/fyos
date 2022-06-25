@@ -36,7 +36,7 @@ lazy_static! {
             raw_handler!(raw_invalid_opcode_handler -> !),
         );
 
-        // SAFETY:
+        // Safety:
         // * The stack index points to a valid stack in GDT.
         // * It's not used by other interrupt handler.
         unsafe {
@@ -188,7 +188,7 @@ impl InterruptDescriptorTable {
             limit: (core::mem::size_of::<InterruptDescriptorTable>() - 1) as u16,
             base: VirtAddr(self as *const InterruptDescriptorTable as u64),
         };
-        // SAFETY:
+        // Safety:
         // * The handler is valid idt and of 'static.
         unsafe {
             lidt(&ptr);
@@ -254,7 +254,7 @@ impl Entry {
         self
     }
 
-    /// SAFETY:
+    /// Safety:
     /// * stack index is a valid and not used by other interrupts.
     pub unsafe fn set_stack_index(&mut self, index: u16) -> &mut Self {
         let mut opts = self.options;
@@ -298,7 +298,7 @@ impl EntryOptions {
         self
     }
 
-    /// SAFETY:
+    /// Safety:
     /// * stack index is a valid and not used by other interrupts.
     pub unsafe fn set_stack_index(&mut self, index: u16) -> &mut Self {
         // The hardware IST index starts at 1, but our software IST index

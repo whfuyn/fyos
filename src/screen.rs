@@ -95,7 +95,7 @@ impl VgaBuffer {
     /// Panics if row or col goes outside of the screen.
     #[allow(dead_code)]
     pub fn read_char(&self, row: usize, col: usize) -> ScreenChar {
-        // SAFETY: self.0[row][col] will panics otherwise.
+        // Safety: self.0[row][col] will panics otherwise.
         unsafe { core::ptr::read_volatile(&self.0[row][col]).0 }
     }
 
@@ -103,7 +103,7 @@ impl VgaBuffer {
     /// # Panics
     /// Panics if row or col goes outside of the screen.
     pub fn write_char(&mut self, row: usize, col: usize, ch: ScreenChar) {
-        // SAFETY: self.0[row][col] will panics otherwise.
+        // Safety: self.0[row][col] will panics otherwise.
         unsafe {
             core::ptr::write_volatile(&mut self.0[row][col], Volatile(ch));
         }
@@ -113,7 +113,7 @@ impl VgaBuffer {
     /// # Panics
     /// Panics if idx goes outside of the screen
     pub fn read_row(&self, idx: usize) -> VgaBufferRow {
-        // SAFETY: self.0[idx] will panics otherwise.
+        // Safety: self.0[idx] will panics otherwise.
         unsafe { core::ptr::read_volatile(&self.0[idx] as *const _ as *const VgaBufferRow) }
     }
 
@@ -121,7 +121,7 @@ impl VgaBuffer {
     /// # Panics
     /// Panics if idx goes outside of the screen
     pub fn write_row(&mut self, idx: usize, row: VgaBufferRow) {
-        // SAFETY: self.0[idx] will panics otherwise.
+        // Safety: self.0[idx] will panics otherwise.
         unsafe {
             core::ptr::write_volatile(&mut self.0[idx] as *mut _ as *mut VgaBufferRow, row);
         }
@@ -138,7 +138,7 @@ pub struct Screen {
 
 impl Screen {
     fn new() -> Self {
-        // SAFETY:
+        // Safety:
         // This is the vga buffer and we are the only user.
         let buffer = unsafe { &mut *(VGA_BUFFER_ADDR as *mut VgaBuffer) };
 

@@ -37,7 +37,7 @@ struct Selectors {
 
 pub fn init() {
     GDT.0.load();
-    // SAFETY: code and tss selector are valid.
+    // Safety: code and tss selector are valid.
     unsafe {
         CS::set_reg(GDT.1.code_selector);
         load_tss(GDT.1.tss_selector);
@@ -150,7 +150,7 @@ impl GlobalDescriptorTable {
     }
 
     pub fn load(&'static self) {
-        // SAFETY:
+        // Safety:
         // * valid & 'static
         unsafe { lgdt(&self.pointer()) }
     }
