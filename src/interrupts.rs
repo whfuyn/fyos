@@ -2,6 +2,14 @@ pub mod idt;
 
 use core::fmt;
 pub use idt::init_idt;
+pub use crate::pic::ChainedPics;
+use crate::spinlock::SpinLock;
+
+
+pub const PIC_1_OFFSET: u8 = 32;
+pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
+
+pub static PICS: SpinLock<ChainedPics> = SpinLock::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]

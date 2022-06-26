@@ -12,6 +12,7 @@ pub mod gdt;
 pub mod interrupts;
 pub mod lazy_static;
 pub mod port;
+pub mod pic;
 pub mod screen;
 pub mod serial;
 pub mod spinlock;

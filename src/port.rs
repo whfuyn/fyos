@@ -27,8 +27,15 @@ pub struct PortGeneric<T, A> {
     _phantom: PhantomData<(T, A)>,
 }
 
+impl<T, A> PortGeneric<T, A> {
+    pub const fn new(port: u16) -> Self {
+        Self { port, _phantom: PhantomData }
+    }
+
+}
+
 pub trait PortWrite<T> {
-    fn write(&self, value: T);
+    fn write(&mut self, value: T);
 }
 
 pub trait PortRead<T> {
@@ -36,7 +43,7 @@ pub trait PortRead<T> {
 }
 
 impl<A: access::Writable> PortWrite<u8> for PortGeneric<u8, A> {
-    fn write(&self, value: u8) {
+    fn write(&mut self, value: u8) {
         // See https://www.felixcloutier.com/x86/out
         // Safety:
         // TODO: in what circumstance will it be unsound?
@@ -52,7 +59,7 @@ impl<A: access::Writable> PortWrite<u8> for PortGeneric<u8, A> {
 }
 
 impl<A: access::Writable> PortWrite<u16> for PortGeneric<u16, A> {
-    fn write(&self, value: u16) {
+    fn write(&mut self, value: u16) {
         unsafe {
             asm!(
                 "out dx, ax",
@@ -65,7 +72,7 @@ impl<A: access::Writable> PortWrite<u16> for PortGeneric<u16, A> {
 }
 
 impl<A: access::Writable> PortWrite<u32> for PortGeneric<u32, A> {
-    fn write(&self, value: u32) {
+    fn write(&mut self, value: u32) {
         unsafe {
             asm!(
                 "out dx, eax",
