@@ -24,6 +24,10 @@ pub mod bit_field;
 pub fn init() {
     gdt::init();
     interrupts::init_idt();
+    unsafe {
+        interrupts::PICS.lock().initialize();
+    }
+    x86_64::enable_interrupt();
 }
 
 pub trait Testable {

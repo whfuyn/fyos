@@ -41,6 +41,9 @@ pub struct ChainedPics {
 }
 
 impl ChainedPics {
+    /// Safety(?):
+    /// * Must not overlap with exception.
+    /// * Must not overlap with each other.
     pub const unsafe fn new(offset1: u8, offset2: u8) -> Self {
         ChainedPics {
             pics: [
@@ -67,7 +70,7 @@ impl ChainedPics {
         self.pics[1].write_mask(mask2);
     }
 
-    pub unsafe fn init(&mut self) {
+    pub unsafe fn initialize(&mut self) {
         let mut wait_port: Port<u8> = Port::new(0x80);
         let mut wait = || wait_port.write(0);
 

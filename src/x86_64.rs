@@ -173,6 +173,26 @@ pub fn ud2() {
     }
 }
 
+#[inline]
+pub fn enable_interrupt() {
+    unsafe {
+        asm!(
+            "sti",
+            options(nomem, nostack)
+        )
+    }
+}
+
+#[inline]
+pub fn disable_interrupt() {
+    unsafe {
+        asm!(
+            "cli",
+            options(nomem, nostack)
+        )
+    }
+}
+
 // /// Safety:
 // /// * It's called in the begining of a raw interrupt handler.
 // #[inline(always)]
