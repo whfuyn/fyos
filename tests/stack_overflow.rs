@@ -12,7 +12,7 @@ use fyos::{
         ErrorCode,
     },
     lazy_static, raw_handler_with_error_code, serial_print, serial_println,
-    x86_64::InterruptStackFrame,
+    interrupts::InterruptStackFrame,
     QemuExitCode,
 };
 

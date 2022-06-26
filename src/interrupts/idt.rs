@@ -1,4 +1,3 @@
-use super::ErrorCode;
 use crate::bit_field::BitField;
 use crate::gdt;
 use crate::lazy_static;
@@ -6,8 +5,13 @@ use crate::raw_handler;
 use crate::raw_handler_with_error_code;
 use crate::serial_println;
 use crate::x86_64::{
-    lidt, DescriptorTablePointer, HandlerFunc, HandlerFuncWithErrorCode, InterruptStackFrame,
-    RawHandlerFunc, RawHandlerFuncWithErrorCode, SegmentSelector, VirtAddr, CS,
+    lidt, DescriptorTablePointer,
+    SegmentSelector, VirtAddr, CS,
+};
+use super::{
+    ErrorCode, InterruptStackFrame,
+    RawHandlerFunc, RawHandlerFuncWithErrorCode,
+    HandlerFunc, HandlerFuncWithErrorCode,
 };
 
 /// x86_64 exception vector number.

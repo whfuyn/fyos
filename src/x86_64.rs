@@ -4,12 +4,6 @@ use core::arch::asm;
 use core::fmt;
 use core::ops;
 
-pub type RawHandlerFunc = unsafe extern "C" fn() -> !;
-pub type RawHandlerFuncWithErrorCode = unsafe extern "C" fn() -> !;
-pub type HandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame);
-pub type HandlerFuncWithErrorCode =
-    extern "x86-interrupt" fn(InterruptStackFrame, crate::interrupts::ErrorCode);
-
 #[repr(u8)]
 pub enum PrivilegeLevel {
     Ring0 = 0,
@@ -206,32 +200,6 @@ pub fn disable_interrupt() {
 //         &*stack_frame
 //     }
 // }
-
-// TODO: impl dref and unsafe get_mut
-/// Wrapper that ensures no accidental modification of the interrupt stack frame.(?)
-#[derive(Debug)]
-#[repr(C)]
-pub struct InterruptStackFrame {
-    value: InterruptStackFrameValue,
-}
-
-impl core::ops::Deref for InterruptStackFrame {
-    type Target = InterruptStackFrameValue;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct InterruptStackFrameValue {
-    pub instruction_pointer: VirtAddr,
-    pub code_segment: u64,
-    pub cpu_flags: u64,
-    pub stack_pointer: VirtAddr,
-    pub stack_segment: u64,
-}
 
 /// Safety:
 /// * input is an valid tss

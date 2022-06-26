@@ -1,10 +1,17 @@
 pub mod idt;
 
-use core::fmt;
 pub use idt::init_idt;
 pub use crate::pic::ChainedPics;
-use crate::spinlock::SpinLock;
 
+use core::fmt;
+use crate::spinlock::SpinLock;
+use crate::x86_64::VirtAddr;
+
+pub type RawHandlerFunc = unsafe extern "C" fn() -> !;
+pub type RawHandlerFuncWithErrorCode = unsafe extern "C" fn() -> !;
+pub type HandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame);
+pub type HandlerFuncWithErrorCode =
+    extern "x86-interrupt" fn(InterruptStackFrame, crate::interrupts::ErrorCode);
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -31,12 +38,12 @@ impl fmt::UpperHex for ErrorCode {
 macro_rules! raw_handler {
     ($name: ident) => {{
         // Signature check
-        const _: extern "C" fn(&$crate::x86_64::InterruptStackFrame) = $name;
+        const _: extern "C" fn(&$crate::interrupts::InterruptStackFrame) = $name;
         $crate::raw_handler!(@INNER $name)
     }};
     ($name: ident -> !) => {{
         // Signature check
-        const _: extern "C" fn(&$crate::x86_64::InterruptStackFrame) -> ! = $name;
+        const _: extern "C" fn(&$crate::interrupts::InterruptStackFrame) -> ! = $name;
         $crate::raw_handler!(@INNER $name)
     }};
     (@INNER $name: ident) => {{
@@ -89,11 +96,11 @@ macro_rules! raw_handler {
 #[macro_export]
 macro_rules! raw_handler_with_error_code {
     ($name: ident) => {{
-        const _: extern "C" fn(&$crate::x86_64::InterruptStackFrame, $crate::interrupts::ErrorCode) = $name;
+        const _: extern "C" fn(&$crate::interrupts::InterruptStackFrame, $crate::interrupts::ErrorCode) = $name;
         $crate::raw_handler_with_error_code!(@INNER $name)
     }};
     ($name: ident -> !) => {{
-        const _: extern "C" fn(&$crate::x86_64::InterruptStackFrame, $crate::interrupts::ErrorCode) -> ! = $name;
+        const _: extern "C" fn(&$crate::interrupts::InterruptStackFrame, $crate::interrupts::ErrorCode) -> ! = $name;
         $crate::raw_handler_with_error_code!(@INNER $name)
     }};
     (@INNER $name: ident) => {{
@@ -145,4 +152,30 @@ macro_rules! raw_handler_with_error_code {
         }
         wrapper
     }};
+}
+
+// TODO: impl dref and unsafe get_mut
+/// Wrapper that ensures no accidental modification of the interrupt stack frame.(?)
+#[derive(Debug)]
+#[repr(C)]
+pub struct InterruptStackFrame {
+    value: InterruptStackFrameValue,
+}
+
+impl core::ops::Deref for InterruptStackFrame {
+    type Target = InterruptStackFrameValue;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct InterruptStackFrameValue {
+    pub instruction_pointer: VirtAddr,
+    pub code_segment: u64,
+    pub cpu_flags: u64,
+    pub stack_pointer: VirtAddr,
+    pub stack_segment: u64,
 }
