@@ -137,6 +137,7 @@ macro_rules! raw_handler {
     ($name: ident) => {{
         // Signature check
         const _: $crate::interrupts::RawHandlerFunc = $name;
+        #[allow(unused_unsafe)]
         unsafe {
             $crate::interrupts::RawHandler::new(
                 $crate::raw_handler!(@INNER $name),
@@ -147,6 +148,7 @@ macro_rules! raw_handler {
     ($name: ident -> !) => {{
         // Signature check
         const _: $crate::interrupts::RawDivergingHandlerFunc = $name;
+        #[allow(unused_unsafe)]
         unsafe {
             $crate::interrupts::RawHandler::new(
                 $crate::raw_handler!(@INNER $name),
@@ -206,6 +208,7 @@ macro_rules! raw_handler_with_error_code {
     ($name: ident) => {{
         // Signature check
         const _: $crate::interrupts::RawHandlerFuncWithErrorCode = $name;
+        #[allow(unused_unsafe)]
         unsafe {
             $crate::interrupts::RawHandler::new(
                 $crate::raw_handler_with_error_code!(@INNER $name),
@@ -215,6 +218,7 @@ macro_rules! raw_handler_with_error_code {
     }};
     ($name: ident -> !) => {{
         const _: $crate::interrupts::RawDivergingHandlerFuncWithErrorCode = $name;
+        #[allow(unused_unsafe)]
         unsafe {
             $crate::interrupts::RawHandler::new(
                 $crate::raw_handler_with_error_code!(@INNER $name),
@@ -270,6 +274,20 @@ macro_rules! raw_handler_with_error_code {
             }
         }
         wrapper
+    }};
+}
+
+#[macro_export]
+macro_rules! raw_page_fault_handler {
+    ($name: ident) => {{
+        const _: $crate::interrupts::RawPageFaultHandlerFunc = $name;
+        #[allow(unused_unsafe)]
+        unsafe {
+            $crate::interrupts::RawHandler::new(
+                $crate::raw_handler_with_error_code!(@INNER $name),
+                ::core::marker::PhantomData::<$crate::interrupts::RawPageFaultHandlerFunc>,
+            )
+        }
     }};
 }
 

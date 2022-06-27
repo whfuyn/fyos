@@ -3,6 +3,7 @@ use crate::bit_field::BitField;
 use crate::gdt;
 use crate::lazy_static;
 use crate::raw_handler;
+use crate::raw_page_fault_handler;
 use crate::raw_handler_with_error_code;
 use crate::serial_println;
 use crate::x86_64::{
@@ -10,30 +11,13 @@ use crate::x86_64::{
     SegmentSelector, VirtAddr, CS,
 };
 use super::{
-    ErrorCode, InterruptStackFrame,
+    ErrorCode, PageFaultErrorCode, InterruptStackFrame,
     HandlerFunc, HandlerFuncWithErrorCode, PageFaultHandlerFunc, 
     DivergingHandlerFunc, DivergingHandlerFuncWithErrorCode,
     RawHandlerFunc, RawHandlerFuncWithErrorCode, RawPageFaultHandlerFunc,
     RawDivergingHandlerFunc, RawDivergingHandlerFuncWithErrorCode,
     HandlerFn,
 };
-
-// macro_rules! set_raw_handler {
-//     ($entry:expr, $handler_fn:ident) => {
-//         // Signature check
-//         const _: Entry<<$handler_fn as $crate::interrupts::HandlerFn>::RawHandler> = $entry;
-//         unsafe {
-//             $entry.set_handler_addr(raw_handler!($handler_fn));
-//         }
-//     };
-//     ($entry:expr, $handler_fn:ident @ERROR_CODE) => {
-//         // Signature check
-//         const _: Entry<<$handler_fn as $crate::interrupts::HandlerFn>::RawHandler> = $entry;
-//         unsafe {
-//             $entry.set_handler_addr(raw_handler_with_error_code!($handler_fn));
-//         }
-//     };
-// }
 
 /// x86_64 exception vector number.
 #[derive(Debug, Clone, Copy)]
@@ -50,35 +34,22 @@ pub enum Exception {
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
+        // Both handler and raw handler should work.
         idt.divide_error.set_raw_handler(raw_handler!(raw_divide_by_zero_handler));
-        // idt.set_raw_handler(
-        //     Exception::DivideByZero,
-        //     raw_handler!(raw_divide_by_zero_handler -> !),
-        // );
-        // // idt.set_handler(Exception::BreakPoint, breakpoint_handler);
-        // idt.set_raw_handler(Exception::BreakPoint, raw_handler!(raw_breakpoint_handler));
-        // idt.set_raw_handler(
-        //     Exception::InvalidOpCode,
-        //     raw_handler!(raw_invalid_opcode_handler -> !),
-        // );
-
-        // // Safety:
-        // // * The stack index points to a valid stack in GDT.
-        // // * It's not used by other interrupt handler.
-        // unsafe {
-        //     idt
-        //         .set_raw_handler_with_error_code(Exception::DoubleFault, raw_handler_with_error_code!(raw_double_fault_handler -> !))
-        //         .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
-        // }
-
-        // idt.set_raw_handler(
-        //     Exception::GeneralProtectionFault,
-        //     raw_handler_with_error_code!(raw_general_protection_fault_handler -> !),
-        // );
-        // idt.set_raw_handler(
-        //     Exception::PageFault,
-        //     raw_handler_with_error_code!(raw_page_fault_handler -> !),
-        // );
+        idt.breakpoint.set_handler(breakpoint_handler);
+        idt.invalid_opcode.set_raw_handler(raw_handler!(raw_invalid_opcode_handler));
+        // Safety:
+        // * The stack index points to a valid stack in GDT.
+        // * It's not used by other interrupt handler.
+        unsafe {
+            idt.double_fault
+                .set_raw_handler(raw_handler_with_error_code!(raw_double_fault_handler -> !))
+                .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        }
+        idt.general_protection_fault
+            .set_raw_handler(raw_handler_with_error_code!(raw_general_protection_fault_handler));
+        idt.page_fault
+            .set_raw_handler(raw_page_fault_handler!(raw_page_fault_handler));
         idt
     };
 }
@@ -111,7 +82,7 @@ extern "C" fn raw_breakpoint_handler(stack_frame: &InterruptStackFrame) {
     );
 }
 
-extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame){
+extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame) {
     serial_println!("EXCEPTION: divide-by-zero");
     serial_println!("{:#?}", stack_frame);
     loop {
@@ -119,7 +90,7 @@ extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame){
     }
 }
 
-extern "C" fn raw_invalid_opcode_handler(stack_frame: &InterruptStackFrame) -> ! {
+extern "C" fn raw_invalid_opcode_handler(stack_frame: &InterruptStackFrame) {
     serial_println!(
         "EXCEPTION: invalid opcode at {:#x}\n{:#?}",
         stack_frame.instruction_pointer,
@@ -140,7 +111,7 @@ extern "C" fn raw_double_fault_handler(stack_frame: &InterruptStackFrame, error:
 extern "C" fn raw_general_protection_fault_handler(
     stack_frame: &InterruptStackFrame,
     error: ErrorCode,
-) -> ! {
+) {
     serial_println!(
         "EXCEPTION: general protection fault with error code `{:#x}` at {:#x}\n{:#?}",
         error,
@@ -152,7 +123,7 @@ extern "C" fn raw_general_protection_fault_handler(
     }
 }
 
-extern "C" fn raw_page_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
+extern "C" fn raw_page_fault_handler(stack_frame: &InterruptStackFrame, error: PageFaultErrorCode) {
     serial_println!(
         "EXCEPTION: page fault with error code `{:#x}` at {:#x}\n{:#?}",
         error,
@@ -262,14 +233,14 @@ pub struct Entry<F: HandlerFn> {
 }
 
 impl<F: HandlerFn> Entry<F> {
-    unsafe fn set_handler_addr(&mut self, addr: VirtAddr) -> &mut Self {
+    unsafe fn set_handler_addr(&mut self, addr: VirtAddr) -> &mut EntryOptions {
         let pointer = addr.0;
         self.pointer_low = pointer as u16;
         self.pointer_middle = (pointer >> 16) as u16;
         self.pointer_high = (pointer >> 32) as u32;
         self.gdt_selector = CS::get_reg();
         self.options.set_present(true);
-        self
+        &mut self.options
     }
 
     fn missing() -> Self {
@@ -283,52 +254,15 @@ impl<F: HandlerFn> Entry<F> {
             _phantom_handler: PhantomData,
         }
     }
-
-    // TODO: try to do it better.
-    // Those wrapper methods are to work around unaligned packed fields.
-
-    pub fn set_present(&mut self, present: bool) -> &mut Self {
-        let mut opts = self.options;
-        opts.set_present(present);
-        self.options = opts;
-        self
-    }
-
-    pub fn disable_interrupts(&mut self, disable: bool) -> &mut Self {
-        let mut opts = self.options;
-        opts.disable_interrupts(disable);
-        self.options = opts;
-        self
-    }
-
-    pub fn set_privilege_level(&mut self, dpl: u16) -> &mut Self {
-        let mut opts = self.options;
-        opts.set_privilege_level(dpl);
-        self.options = opts;
-        self
-    }
-
-    /// Safety:
-    /// * stack index is a valid and not used by other interrupts.
-    pub unsafe fn set_stack_index(&mut self, index: u16) -> &mut Self {
-        let mut opts = self.options;
-        unsafe {
-            opts.set_stack_index(index);
-        }
-        self.options = opts;
-        self
-    }
-
 }
 
 macro_rules! impl_set_handler {
     ($handler_ty:ty) => {
         impl Entry<$handler_ty> {
-            pub fn set_handler(&mut self, handler: <$handler_ty as $crate::interrupts::HandlerFn>::Handler) -> &mut Self {
+            pub fn set_handler(&mut self, handler: <$handler_ty as $crate::interrupts::HandlerFn>::Handler) -> &mut EntryOptions {
                 unsafe {
-                    self.set_handler_addr(VirtAddr(handler as u64));
+                    self.set_handler_addr(VirtAddr(handler as u64))
                 }
-                self
             }
 
             pub fn set_raw_handler(
@@ -336,11 +270,10 @@ macro_rules! impl_set_handler {
                     $crate::interrupts::RawHandler<
                         <$handler_ty as $crate::interrupts::HandlerFn>::RawHandler
                     >
-            ) -> &mut Self {
+            ) -> &mut EntryOptions {
                 unsafe {
-                    self.set_handler_addr(VirtAddr(handler.handler as u64));
+                    self.set_handler_addr(VirtAddr(handler.handler as u64))
                 }
-                self
             }
         }
     };
@@ -356,10 +289,12 @@ impl_set_handler!{
     DivergingHandlerFunc,
     HandlerFuncWithErrorCode,
     DivergingHandlerFuncWithErrorCode,
+    PageFaultHandlerFunc,
     RawHandlerFunc,
     RawDivergingHandlerFunc,
     RawHandlerFuncWithErrorCode,
     RawDivergingHandlerFuncWithErrorCode,
+    RawPageFaultHandlerFunc,
 }
 
 #[derive(Debug, Clone, Copy)]
