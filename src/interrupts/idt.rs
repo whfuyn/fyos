@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use crate::bit_field::BitField;
 use crate::gdt;
 use crate::lazy_static;
@@ -10,9 +11,29 @@ use crate::x86_64::{
 };
 use super::{
     ErrorCode, InterruptStackFrame,
-    RawHandlerFunc, RawHandlerFuncWithErrorCode,
-    HandlerFunc, HandlerFuncWithErrorCode,
+    HandlerFunc, HandlerFuncWithErrorCode, PageFaultHandlerFunc, 
+    DivergingHandlerFunc, DivergingHandlerFuncWithErrorCode,
+    RawHandlerFunc, RawHandlerFuncWithErrorCode, RawPageFaultHandlerFunc,
+    RawDivergingHandlerFunc, RawDivergingHandlerFuncWithErrorCode,
+    HandlerFn,
 };
+
+// macro_rules! set_raw_handler {
+//     ($entry:expr, $handler_fn:ident) => {
+//         // Signature check
+//         const _: Entry<<$handler_fn as $crate::interrupts::HandlerFn>::RawHandler> = $entry;
+//         unsafe {
+//             $entry.set_handler_addr(raw_handler!($handler_fn));
+//         }
+//     };
+//     ($entry:expr, $handler_fn:ident @ERROR_CODE) => {
+//         // Signature check
+//         const _: Entry<<$handler_fn as $crate::interrupts::HandlerFn>::RawHandler> = $entry;
+//         unsafe {
+//             $entry.set_handler_addr(raw_handler_with_error_code!($handler_fn));
+//         }
+//     };
+// }
 
 /// x86_64 exception vector number.
 #[derive(Debug, Clone, Copy)]
@@ -29,34 +50,35 @@ pub enum Exception {
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
-        idt.set_raw_handler(
-            Exception::DivideByZero,
-            raw_handler!(raw_divide_by_zero_handler -> !),
-        );
-        // idt.set_handler(Exception::BreakPoint, breakpoint_handler);
-        idt.set_raw_handler(Exception::BreakPoint, raw_handler!(raw_breakpoint_handler));
-        idt.set_raw_handler(
-            Exception::InvalidOpCode,
-            raw_handler!(raw_invalid_opcode_handler -> !),
-        );
+        idt.divide_error.set_raw_handler(raw_handler!(raw_divide_by_zero_handler));
+        // idt.set_raw_handler(
+        //     Exception::DivideByZero,
+        //     raw_handler!(raw_divide_by_zero_handler -> !),
+        // );
+        // // idt.set_handler(Exception::BreakPoint, breakpoint_handler);
+        // idt.set_raw_handler(Exception::BreakPoint, raw_handler!(raw_breakpoint_handler));
+        // idt.set_raw_handler(
+        //     Exception::InvalidOpCode,
+        //     raw_handler!(raw_invalid_opcode_handler -> !),
+        // );
 
-        // Safety:
-        // * The stack index points to a valid stack in GDT.
-        // * It's not used by other interrupt handler.
-        unsafe {
-            idt
-                .set_raw_handler_with_error_code(Exception::DoubleFault, raw_handler_with_error_code!(raw_double_fault_handler -> !))
-                .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
-        }
+        // // Safety:
+        // // * The stack index points to a valid stack in GDT.
+        // // * It's not used by other interrupt handler.
+        // unsafe {
+        //     idt
+        //         .set_raw_handler_with_error_code(Exception::DoubleFault, raw_handler_with_error_code!(raw_double_fault_handler -> !))
+        //         .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        // }
 
-        idt.set_raw_handler(
-            Exception::GeneralProtectionFault,
-            raw_handler_with_error_code!(raw_general_protection_fault_handler -> !),
-        );
-        idt.set_raw_handler(
-            Exception::PageFault,
-            raw_handler_with_error_code!(raw_page_fault_handler -> !),
-        );
+        // idt.set_raw_handler(
+        //     Exception::GeneralProtectionFault,
+        //     raw_handler_with_error_code!(raw_general_protection_fault_handler -> !),
+        // );
+        // idt.set_raw_handler(
+        //     Exception::PageFault,
+        //     raw_handler_with_error_code!(raw_page_fault_handler -> !),
+        // );
         idt
     };
 }
@@ -89,7 +111,7 @@ extern "C" fn raw_breakpoint_handler(stack_frame: &InterruptStackFrame) {
     );
 }
 
-extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame) -> ! {
+extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame){
     serial_println!("EXCEPTION: divide-by-zero");
     serial_println!("{:#?}", stack_frame);
     loop {
@@ -146,51 +168,77 @@ pub fn init_idt() {
     IDT.load();
 }
 
-#[repr(transparent)]
-pub struct InterruptDescriptorTable([Entry; 16]);
+#[derive(Clone)]
+#[repr(C)]
+#[repr(align(16))]
+pub struct InterruptDescriptorTable {
+    pub divide_error: Entry<HandlerFunc>,
+    pub debug: Entry<HandlerFunc>,
+    pub non_maskable_interrupt: Entry<HandlerFunc>,
+    pub breakpoint: Entry<HandlerFunc>,
+    pub overflow: Entry<HandlerFunc>,
+    pub bound_range_exceeded: Entry<HandlerFunc>,
+    pub invalid_opcode: Entry<HandlerFunc>,
+    pub device_not_available: Entry<HandlerFunc>,
+    pub double_fault: Entry<DivergingHandlerFuncWithErrorCode>,
+    coprocessor_segment_overrun: Entry<HandlerFunc>,
+    pub invalid_tss: Entry<HandlerFuncWithErrorCode>,
+    pub segment_not_present: Entry<HandlerFuncWithErrorCode>,
+    pub stack_segment_fault: Entry<HandlerFuncWithErrorCode>,
+    pub general_protection_fault: Entry<HandlerFuncWithErrorCode>,
+    pub page_fault: Entry<PageFaultHandlerFunc>,
+    /// vector nr. 15
+    reserved_1: Entry<HandlerFunc>,
+    pub x87_floating_point: Entry<HandlerFunc>,
+    pub alignment_check: Entry<HandlerFuncWithErrorCode>,
+    pub machine_check: Entry<DivergingHandlerFunc>,
+    pub simd_floating_point: Entry<HandlerFunc>,
+    pub virtualization: Entry<HandlerFunc>,
+    /// vector nr. 21-28
+    reserved_2: [Entry<HandlerFunc>; 8],
+    pub vmm_communication_exception: Entry<HandlerFuncWithErrorCode>,
+    pub security_exception: Entry<HandlerFuncWithErrorCode>,
+    /// vector nr. 31
+    reserved_3: Entry<HandlerFunc>,
+    interrupts: [Entry<HandlerFunc>; 256 - 32],
+}
 
 impl InterruptDescriptorTable {
     pub fn new() -> InterruptDescriptorTable {
-        InterruptDescriptorTable([Entry::missing(); 16])
-    }
-
-    // We don't return a &mut EntryOptions because ref to packed struct's field
-    // may not be properly aligned.
-    // See https://github.com/rust-lang/rust/issues/82523
-    pub fn set_raw_handler(&mut self, entry: Exception, handler: RawHandlerFunc) -> &mut Entry {
-        self.set_entry(entry, handler as usize)
-    }
-
-    pub fn set_raw_handler_with_error_code(
-        &mut self,
-        entry: Exception,
-        handler: RawHandlerFuncWithErrorCode,
-    ) -> &mut Entry {
-        self.set_entry(entry, handler as usize)
-    }
-
-    pub fn set_handler(&mut self, entry: Exception, handler: HandlerFunc) -> &mut Entry {
-        self.set_entry(entry, handler as usize)
-    }
-
-    pub fn set_handler_with_error_code(
-        &mut self,
-        entry: Exception,
-        handler: HandlerFuncWithErrorCode,
-    ) -> &mut Entry {
-        self.set_entry(entry, handler as usize)
-    }
-
-    fn set_entry(&mut self, entry: Exception, handler: usize) -> &mut Entry {
-        let e = &mut self.0[entry as usize];
-        *e = Entry::new(CS::get_reg(), handler);
-        e
+        InterruptDescriptorTable {
+            divide_error: Entry::missing(),
+            debug: Entry::missing(),
+            non_maskable_interrupt: Entry::missing(),
+            breakpoint: Entry::missing(),
+            overflow: Entry::missing(),
+            bound_range_exceeded: Entry::missing(),
+            invalid_opcode: Entry::missing(),
+            device_not_available: Entry::missing(),
+            double_fault: Entry::missing(),
+            coprocessor_segment_overrun: Entry::missing(),
+            invalid_tss: Entry::missing(),
+            segment_not_present: Entry::missing(),
+            stack_segment_fault: Entry::missing(),
+            general_protection_fault: Entry::missing(),
+            page_fault: Entry::missing(),
+            reserved_1: Entry::missing(),
+            x87_floating_point: Entry::missing(),
+            alignment_check: Entry::missing(),
+            machine_check: Entry::missing(),
+            simd_floating_point: Entry::missing(),
+            virtualization: Entry::missing(),
+            reserved_2: [Entry::missing(); 8],
+            vmm_communication_exception: Entry::missing(),
+            security_exception: Entry::missing(),
+            reserved_3: Entry::missing(),
+            interrupts: [Entry::missing(); 256 - 32],
+        }
     }
 
     pub fn load(&'static self) {
         let ptr = DescriptorTablePointer {
-            limit: (core::mem::size_of::<InterruptDescriptorTable>() - 1) as u16,
-            base: VirtAddr(self as *const InterruptDescriptorTable as u64),
+            limit: (core::mem::size_of::<Self>() - 1) as u16,
+            base: VirtAddr(self as *const Self as u64),
         };
         // Safety:
         // * The handler is valid idt and of 'static.
@@ -201,27 +249,27 @@ impl InterruptDescriptorTable {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[repr(C, packed)]
-pub struct Entry {
+#[repr(C)]
+pub struct Entry<F: HandlerFn> {
     pointer_low: u16,
     gdt_selector: SegmentSelector,
     options: EntryOptions,
     pointer_middle: u16,
     pointer_high: u32,
     reserved: u32,
+    // handler type
+    _phantom_handler: PhantomData<F>,
 }
 
-impl Entry {
-    fn new(gdt_selector: SegmentSelector, handler: usize) -> Self {
-        let pointer = handler as u64;
-        Entry {
-            pointer_low: pointer as u16,
-            gdt_selector,
-            options: EntryOptions::new(),
-            pointer_middle: (pointer >> 16) as u16,
-            pointer_high: (pointer >> 32) as u32,
-            reserved: 0,
-        }
+impl<F: HandlerFn> Entry<F> {
+    unsafe fn set_handler_addr(&mut self, addr: VirtAddr) -> &mut Self {
+        let pointer = addr.0;
+        self.pointer_low = pointer as u16;
+        self.pointer_middle = (pointer >> 16) as u16;
+        self.pointer_high = (pointer >> 32) as u32;
+        self.gdt_selector = CS::get_reg();
+        self.options.set_present(true);
+        self
     }
 
     fn missing() -> Self {
@@ -232,9 +280,11 @@ impl Entry {
             pointer_middle: 0,
             pointer_high: 0,
             reserved: 0,
+            _phantom_handler: PhantomData,
         }
     }
 
+    // TODO: try to do it better.
     // Those wrapper methods are to work around unaligned packed fields.
 
     pub fn set_present(&mut self, present: bool) -> &mut Self {
@@ -268,6 +318,48 @@ impl Entry {
         self.options = opts;
         self
     }
+
+}
+
+macro_rules! impl_set_handler {
+    ($handler_ty:ty) => {
+        impl Entry<$handler_ty> {
+            pub fn set_handler(&mut self, handler: <$handler_ty as $crate::interrupts::HandlerFn>::Handler) -> &mut Self {
+                unsafe {
+                    self.set_handler_addr(VirtAddr(handler as u64));
+                }
+                self
+            }
+
+            pub fn set_raw_handler(
+                &mut self, handler:
+                    $crate::interrupts::RawHandler<
+                        <$handler_ty as $crate::interrupts::HandlerFn>::RawHandler
+                    >
+            ) -> &mut Self {
+                unsafe {
+                    self.set_handler_addr(VirtAddr(handler.handler as u64));
+                }
+                self
+            }
+        }
+    };
+    ($handler_ty:ty, $($rest:tt)*) => {
+        impl_set_handler!($handler_ty);
+        impl_set_handler!($($rest)*);
+    };
+    () => {};
+}
+
+impl_set_handler!{
+    HandlerFunc,
+    DivergingHandlerFunc,
+    HandlerFuncWithErrorCode,
+    DivergingHandlerFuncWithErrorCode,
+    RawHandlerFunc,
+    RawDivergingHandlerFunc,
+    RawHandlerFuncWithErrorCode,
+    RawDivergingHandlerFuncWithErrorCode,
 }
 
 #[derive(Debug, Clone, Copy)]

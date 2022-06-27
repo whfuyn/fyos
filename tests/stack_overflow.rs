@@ -8,7 +8,7 @@ use fyos::{
     exit_qemu,
     gdt::{init as init_gdt, DOUBLE_FAULT_IST_INDEX},
     interrupts::{
-        idt::{Exception, InterruptDescriptorTable},
+        idt::InterruptDescriptorTable,
         ErrorCode,
     },
     lazy_static, raw_handler_with_error_code, serial_print, serial_println,
@@ -20,9 +20,8 @@ lazy_static! {
     static ref TEST_IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
         unsafe {
-            idt.set_raw_handler_with_error_code(
-                Exception::DoubleFault,
-                raw_handler_with_error_code!(raw_double_fault_handler -> !),
+            idt.double_fault.set_raw_handler(
+                raw_handler_with_error_code!(raw_double_fault_handler -> !)
             )
             .set_stack_index(DOUBLE_FAULT_IST_INDEX);
         }

@@ -4,19 +4,101 @@ pub use idt::init_idt;
 pub use crate::pic::ChainedPics;
 
 use core::fmt;
+use core::marker::PhantomData;
 use crate::spinlock::SpinLock;
 use crate::x86_64::VirtAddr;
 
-pub type RawHandlerFunc = unsafe extern "C" fn() -> !;
-pub type RawHandlerFuncWithErrorCode = unsafe extern "C" fn() -> !;
-pub type HandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame);
-pub type HandlerFuncWithErrorCode =
-    extern "x86-interrupt" fn(InterruptStackFrame, crate::interrupts::ErrorCode);
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
 pub static PICS: SpinLock<ChainedPics> = SpinLock::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
+
+
+pub type HandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame);
+pub type DivergingHandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame) -> !;
+pub type HandlerFuncWithErrorCode =
+    extern "x86-interrupt" fn(InterruptStackFrame, ErrorCode);
+pub type DivergingHandlerFuncWithErrorCode =
+    extern "x86-interrupt" fn(InterruptStackFrame, ErrorCode) -> !;
+
+pub type RawHandlerFunc = extern "C" fn(&InterruptStackFrame);
+pub type RawDivergingHandlerFunc = extern "C" fn(&InterruptStackFrame) -> !;
+pub type RawHandlerFuncWithErrorCode = extern "C" fn(&InterruptStackFrame, ErrorCode);
+pub type RawDivergingHandlerFuncWithErrorCode = extern "C" fn(&InterruptStackFrame, ErrorCode) -> !;
+
+pub type PageFaultHandlerFunc =
+    extern "x86-interrupt" fn(InterruptStackFrame, PageFaultErrorCode);
+pub type RawPageFaultHandlerFunc =
+    extern "C" fn(&InterruptStackFrame, PageFaultErrorCode);
+
+pub trait HandlerFn {
+    type Handler;
+    type RawHandler;
+}
+
+impl HandlerFn for HandlerFunc {
+    type Handler = Self;
+    type RawHandler = RawHandlerFunc;
+}
+
+impl HandlerFn for DivergingHandlerFunc {
+    type Handler = Self;
+    type RawHandler = RawDivergingHandlerFunc;
+}
+
+impl HandlerFn for HandlerFuncWithErrorCode {
+    type Handler = Self;
+    type RawHandler = RawHandlerFuncWithErrorCode;
+}
+
+impl HandlerFn for DivergingHandlerFuncWithErrorCode {
+    type Handler = Self;
+    type RawHandler = RawDivergingHandlerFuncWithErrorCode;
+}
+
+impl HandlerFn for PageFaultHandlerFunc {
+    type Handler = Self;
+    type RawHandler = RawPageFaultHandlerFunc;
+}
+
+impl HandlerFn for RawHandlerFunc {
+    type Handler = HandlerFunc;
+    type RawHandler = Self;
+}
+
+impl HandlerFn for RawDivergingHandlerFunc {
+    type Handler = DivergingHandlerFunc;
+    type RawHandler = Self;
+}
+
+impl HandlerFn for RawHandlerFuncWithErrorCode {
+    type Handler = HandlerFuncWithErrorCode;
+    type RawHandler = Self;
+}
+
+impl HandlerFn for RawDivergingHandlerFuncWithErrorCode {
+    type Handler = DivergingHandlerFuncWithErrorCode;
+    type RawHandler = Self;
+}
+
+impl HandlerFn for RawPageFaultHandlerFunc {
+    type Handler = PageFaultHandlerFunc;
+    type RawHandler = Self;
+}
+
+pub struct RawHandler<F: HandlerFn> {
+    /// Wrapped raw handler fn
+    handler: unsafe extern "C" fn() -> !,
+    /// To preserve type info
+    _phantom: PhantomData<F>,
+}
+
+impl<F: HandlerFn> RawHandler<F> {
+    pub const unsafe fn new(handler: unsafe extern "C" fn() -> !, _phantom: PhantomData<F>) -> Self {
+        Self { handler, _phantom }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
@@ -34,17 +116,43 @@ impl fmt::UpperHex for ErrorCode {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct PageFaultErrorCode(u64);
+
+impl fmt::LowerHex for PageFaultErrorCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::LowerHex::fmt(&self.0, f)
+    }
+}
+
+impl fmt::UpperHex for PageFaultErrorCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::UpperHex::fmt(&self.0, f)
+    }
+}
+
 #[macro_export]
 macro_rules! raw_handler {
     ($name: ident) => {{
         // Signature check
-        const _: extern "C" fn(&$crate::interrupts::InterruptStackFrame) = $name;
-        $crate::raw_handler!(@INNER $name)
+        const _: $crate::interrupts::RawHandlerFunc = $name;
+        unsafe {
+            $crate::interrupts::RawHandler::new(
+                $crate::raw_handler!(@INNER $name),
+                ::core::marker::PhantomData::<$crate::interrupts::RawHandlerFunc>,
+            )
+        }
     }};
     ($name: ident -> !) => {{
         // Signature check
-        const _: extern "C" fn(&$crate::interrupts::InterruptStackFrame) -> ! = $name;
-        $crate::raw_handler!(@INNER $name)
+        const _: $crate::interrupts::RawDivergingHandlerFunc = $name;
+        unsafe {
+            $crate::interrupts::RawHandler::new(
+                $crate::raw_handler!(@INNER $name),
+                ::core::marker::PhantomData::<$crate::interrupts::RawDivergingHandlerFunc>,
+            )
+        }
     }};
     (@INNER $name: ident) => {{
         // Safety:
@@ -96,12 +204,23 @@ macro_rules! raw_handler {
 #[macro_export]
 macro_rules! raw_handler_with_error_code {
     ($name: ident) => {{
-        const _: extern "C" fn(&$crate::interrupts::InterruptStackFrame, $crate::interrupts::ErrorCode) = $name;
-        $crate::raw_handler_with_error_code!(@INNER $name)
+        // Signature check
+        const _: $crate::interrupts::RawHandlerFuncWithErrorCode = $name;
+        unsafe {
+            $crate::interrupts::RawHandler::new(
+                $crate::raw_handler_with_error_code!(@INNER $name),
+                ::core::marker::PhantomData::<$crate::interrupts::RawHandlerFuncWithErrorCode>,
+            )
+        }
     }};
     ($name: ident -> !) => {{
-        const _: extern "C" fn(&$crate::interrupts::InterruptStackFrame, $crate::interrupts::ErrorCode) -> ! = $name;
-        $crate::raw_handler_with_error_code!(@INNER $name)
+        const _: $crate::interrupts::RawDivergingHandlerFuncWithErrorCode = $name;
+        unsafe {
+            $crate::interrupts::RawHandler::new(
+                $crate::raw_handler_with_error_code!(@INNER $name),
+                ::core::marker::PhantomData::<$crate::interrupts::RawDivergingHandlerFuncWithErrorCode>,
+            )
+        }
     }};
     (@INNER $name: ident) => {{
         // Safety:

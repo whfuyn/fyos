@@ -46,7 +46,7 @@ macro_rules! impl_bit_width {
             const BITS: u32 = <$ty>::BITS;
         }
     };
-    ($($ty:ty),*$(,)?) => {
+    ($($ty:ty),* $(,)?) => {
         $(impl_bit_width!($ty);)*
     };
 }
