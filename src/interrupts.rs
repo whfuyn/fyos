@@ -6,7 +6,7 @@ pub use crate::pic::ChainedPics;
 use core::fmt;
 use core::marker::PhantomData;
 use crate::spinlock::SpinLock;
-use crate::x86_64::VirtAddr;
+use crate::x86_64::{self, VirtAddr};
 
 
 pub const PIC_1_OFFSET: u8 = 32;
@@ -315,4 +315,16 @@ pub struct InterruptStackFrameValue {
     pub cpu_flags: u64,
     pub stack_pointer: VirtAddr,
     pub stack_segment: u64,
+}
+
+pub fn without_interrupts<F: FnOnce() -> R, R>(f: F) -> R {
+    let is_enabled = x86_64::is_interrupt_enabled();
+    if is_enabled {
+        x86_64::disable_interrupt();
+        let ret = f();
+        x86_64::enable_interrupt();
+        ret
+    } else {
+        f()
+    }
 }

@@ -9,7 +9,7 @@ I use this tutorial as a guide. Things of interest will be implemented on my own
 
 ## Prerequisites
 
-- `rust-src` is needed to build our kernel for a custom target.
+- `rust-src` is needed to build our kernel for our custom target.
 - To create a bootable image, install `bootimage` binary and its denpendency `llvm-tools-preview`.
 ```
 $ rustup component rust-src llvm-tools-preview

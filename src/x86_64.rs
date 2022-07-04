@@ -187,6 +187,20 @@ pub fn disable_interrupt() {
     }
 }
 
+pub fn is_interrupt_enabled() -> bool {
+    const INTERRUPT_FLAG: u64 = 1 << 9;
+    let rflags: u64;
+    unsafe {
+        asm!(
+            "pushfq",
+            "pop {}",
+            out(reg) rflags,
+            options(nomem, preserves_flags)
+        );
+    }
+    rflags & INTERRUPT_FLAG != 0
+}
+
 // /// Safety:
 // /// * It's called in the begining of a raw interrupt handler.
 // #[inline(always)]
