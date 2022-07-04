@@ -35,15 +35,15 @@ impl<T, A> PortGeneric<T, A> {
 }
 
 pub trait PortWrite<T> {
-    fn write(&mut self, value: T);
+    unsafe fn write(&mut self, value: T);
 }
 
 pub trait PortRead<T> {
-    fn read(&self) -> T;
+    unsafe fn read(&self) -> T;
 }
 
 impl<A: access::Writable> PortWrite<u8> for PortGeneric<u8, A> {
-    fn write(&mut self, value: u8) {
+    unsafe fn write(&mut self, value: u8) {
         // See https://www.felixcloutier.com/x86/out
         // Safety:
         // TODO: in what circumstance will it be unsound?
@@ -59,7 +59,7 @@ impl<A: access::Writable> PortWrite<u8> for PortGeneric<u8, A> {
 }
 
 impl<A: access::Writable> PortWrite<u16> for PortGeneric<u16, A> {
-    fn write(&mut self, value: u16) {
+    unsafe fn write(&mut self, value: u16) {
         unsafe {
             asm!(
                 "out dx, ax",
@@ -72,7 +72,7 @@ impl<A: access::Writable> PortWrite<u16> for PortGeneric<u16, A> {
 }
 
 impl<A: access::Writable> PortWrite<u32> for PortGeneric<u32, A> {
-    fn write(&mut self, value: u32) {
+    unsafe fn write(&mut self, value: u32) {
         unsafe {
             asm!(
                 "out dx, eax",
@@ -85,7 +85,7 @@ impl<A: access::Writable> PortWrite<u32> for PortGeneric<u32, A> {
 }
 
 impl<A: access::Readable> PortRead<u8> for PortGeneric<u8, A> {
-    fn read(&self) -> u8 {
+    unsafe fn read(&self) -> u8 {
         // Looks like both `let mut` and `let` will work.
         let value: u8;
         unsafe {
@@ -101,7 +101,7 @@ impl<A: access::Readable> PortRead<u8> for PortGeneric<u8, A> {
 }
 
 impl<A: access::Readable> PortRead<u16> for PortGeneric<u16, A> {
-    fn read(&self) -> u16 {
+    unsafe fn read(&self) -> u16 {
         let value: u16;
         unsafe {
             asm!(
@@ -116,7 +116,7 @@ impl<A: access::Readable> PortRead<u16> for PortGeneric<u16, A> {
 }
 
 impl<A: access::Readable> PortRead<u32> for PortGeneric<u32, A> {
-    fn read(&self) -> u32 {
+    unsafe fn read(&self) -> u32 {
         let value: u32;
         unsafe {
             asm!(
