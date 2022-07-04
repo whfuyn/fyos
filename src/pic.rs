@@ -115,4 +115,13 @@ impl ChainedPics {
         self.write_masks(u8::MAX, u8::MAX);
     }
 
+    pub fn notify_end_of_interrupt(&mut self, interrupt_id: u8) {
+        if self.handles_interrupt(interrupt_id) {
+            if self.pics[1].handles_interrupt(interrupt_id) {
+                self.pics[1].end_of_interrupt();
+            }
+            self.pics[0].end_of_interrupt();
+        }
+    }
+
 }

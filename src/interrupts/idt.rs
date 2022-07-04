@@ -1,10 +1,13 @@
 use core::marker::PhantomData;
+use core::ops::{ Index, IndexMut };
 use crate::bit_field::BitField;
 use crate::gdt;
 use crate::lazy_static;
 use crate::raw_handler;
 use crate::raw_page_fault_handler;
 use crate::raw_handler_with_error_code;
+use crate::print;
+use crate::serial_print;
 use crate::serial_println;
 use crate::x86_64::{
     lidt, DescriptorTablePointer,
@@ -50,6 +53,8 @@ lazy_static! {
             .set_raw_handler(raw_handler_with_error_code!(raw_general_protection_fault_handler));
         idt.page_fault
             .set_raw_handler(raw_page_fault_handler!(raw_page_fault_handler));
+        idt[super::PIC_1_OFFSET as usize]
+            .set_raw_handler(raw_handler!(raw_timer_handler));
         idt
     };
 }
@@ -80,6 +85,12 @@ extern "C" fn raw_breakpoint_handler(stack_frame: &InterruptStackFrame) {
         stack_frame.instruction_pointer,
         stack_frame
     );
+}
+
+extern "C" fn raw_timer_handler(_stack_frame: &InterruptStackFrame) {
+    print!(".");
+    serial_print!(".");
+    super::PICS.lock().notify_end_of_interrupt(super::PIC_1_OFFSET);
 }
 
 extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame) {
@@ -219,6 +230,70 @@ impl InterruptDescriptorTable {
     }
 }
 
+impl Index<usize> for InterruptDescriptorTable {
+    type Output = Entry<HandlerFunc>;
+
+    /// Returns the IDT entry with the specified index.
+    ///
+    /// Panics if index is outside the IDT (i.e. greater than 255) or if the entry is an
+    /// exception that pushes an error code (use the struct fields for accessing these entries).
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            0 => &self.divide_error,
+            1 => &self.debug,
+            2 => &self.non_maskable_interrupt,
+            3 => &self.breakpoint,
+            4 => &self.overflow,
+            5 => &self.bound_range_exceeded,
+            6 => &self.invalid_opcode,
+            7 => &self.device_not_available,
+            9 => &self.coprocessor_segment_overrun,
+            16 => &self.x87_floating_point,
+            19 => &self.simd_floating_point,
+            20 => &self.virtualization,
+            i @ 32..=255 => &self.interrupts[i - 32],
+            i @ 15 | i @ 31 | i @ 21..=28 => panic!("entry {} is reserved", i),
+            i @ 8 | i @ 10..=14 | i @ 17 | i @ 29 | i @ 30 => {
+                panic!("entry {} is an exception with error code", i)
+            }
+            i @ 18 => panic!("entry {} is an diverging exception (must not return)", i),
+            i => panic!("no entry with index {}", i),
+        }
+    }
+}
+
+impl IndexMut<usize> for InterruptDescriptorTable {
+    /// Returns a mutable reference to the IDT entry with the specified index.
+    ///
+    /// Panics if index is outside the IDT (i.e. greater than 255) or if the entry is an
+    /// exception that pushes an error code (use the struct fields for accessing these entries).
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        match index {
+            0 => &mut self.divide_error,
+            1 => &mut self.debug,
+            2 => &mut self.non_maskable_interrupt,
+            3 => &mut self.breakpoint,
+            4 => &mut self.overflow,
+            5 => &mut self.bound_range_exceeded,
+            6 => &mut self.invalid_opcode,
+            7 => &mut self.device_not_available,
+            9 => &mut self.coprocessor_segment_overrun,
+            16 => &mut self.x87_floating_point,
+            19 => &mut self.simd_floating_point,
+            20 => &mut self.virtualization,
+            i @ 32..=255 => &mut self.interrupts[i - 32],
+            i @ 15 | i @ 31 | i @ 21..=28 => panic!("entry {} is reserved", i),
+            i @ 8 | i @ 10..=14 | i @ 17 | i @ 29 | i @ 30 => {
+                panic!("entry {} is an exception with error code", i)
+            }
+            i @ 18 => panic!("entry {} is an diverging exception (must not return)", i),
+            i => panic!("no entry with index {}", i),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Entry<F: HandlerFn> {
@@ -308,12 +383,6 @@ impl EntryOptions {
         EntryOptions(options)
     }
 
-    fn new() -> Self {
-        let mut options = Self::minimal();
-        options.set_present(true).disable_interrupts(true);
-        options
-    }
-
     pub fn set_present(&mut self, present: bool) -> &mut Self {
         self.0.set_bits(15, present as u16);
         self
@@ -388,4 +457,14 @@ mod tests {
     //     divide_by_zero();
     //     serial_println!("No haoye!");
     // }
+
+    #[test_case]
+    fn test_timer_handler() {
+        crate::init();
+        serial_println!("start");
+        loop {
+            serial_print!("*");
+            for _ in 0..10000{}
+        }
+    }
 }
