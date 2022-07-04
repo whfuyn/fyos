@@ -22,7 +22,7 @@ impl Pic {
         unsafe {self.cmd.write(CMD_END_OF_INTERRUPT); }
     }
 
-    unsafe fn read_mask(&self) -> u8 {
+    unsafe fn read_mask(&mut self) -> u8 {
         // TODO: why can we just read the data port for the mask?
         unsafe { self.data.read() }
     }
@@ -61,7 +61,7 @@ impl ChainedPics {
         }
     }
 
-    fn read_masks(&self) -> [u8; 2] {
+    fn read_masks(&mut self) -> [u8; 2] {
         unsafe {
             [self.pics[0].read_mask(), self.pics[1].read_mask()]
         }

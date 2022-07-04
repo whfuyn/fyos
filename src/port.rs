@@ -39,7 +39,7 @@ pub trait PortWrite<T> {
 }
 
 pub trait PortRead<T> {
-    unsafe fn read(&self) -> T;
+    unsafe fn read(&mut self) -> T;
 }
 
 impl<A: access::Writable> PortWrite<u8> for PortGeneric<u8, A> {
@@ -85,7 +85,7 @@ impl<A: access::Writable> PortWrite<u32> for PortGeneric<u32, A> {
 }
 
 impl<A: access::Readable> PortRead<u8> for PortGeneric<u8, A> {
-    unsafe fn read(&self) -> u8 {
+    unsafe fn read(&mut self) -> u8 {
         // Looks like both `let mut` and `let` will work.
         let value: u8;
         unsafe {
@@ -101,7 +101,7 @@ impl<A: access::Readable> PortRead<u8> for PortGeneric<u8, A> {
 }
 
 impl<A: access::Readable> PortRead<u16> for PortGeneric<u16, A> {
-    unsafe fn read(&self) -> u16 {
+    unsafe fn read(&mut self) -> u16 {
         let value: u16;
         unsafe {
             asm!(
@@ -116,7 +116,7 @@ impl<A: access::Readable> PortRead<u16> for PortGeneric<u16, A> {
 }
 
 impl<A: access::Readable> PortRead<u32> for PortGeneric<u32, A> {
-    unsafe fn read(&self) -> u32 {
+    unsafe fn read(&mut self) -> u32 {
         let value: u32;
         unsafe {
             asm!(
