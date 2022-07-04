@@ -9,6 +9,7 @@ use crate::x86_64::{self, VirtAddr};
 use crate::lazy_static;
 use crate::print;
 use crate::println;
+use crate::port::{ Port, PortRead };
 use crate::serial_print;
 use crate::serial_println;
 use idt::InterruptDescriptorTable;
@@ -349,14 +350,51 @@ lazy_static! {
             .set_raw_handler(raw_handler_with_error_code!(raw_general_protection_fault_handler));
         idt.page_fault
             .set_raw_handler(raw_page_fault_handler!(raw_page_fault_handler));
+
         idt[InterruptIndex::Timer as usize]
             .set_raw_handler(raw_handler!(raw_timer_handler));
+        idt[InterruptIndex::Keyboard as usize]
+            .set_raw_handler(raw_handler!(raw_keyboard_handler));
         idt
     };
 }
 
 pub fn init() {
     IDT.load();
+}
+
+extern "C" fn raw_keyboard_handler(_stack_frame: &InterruptStackFrame) {
+    use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+
+    lazy_static! {
+        static ref KEYBOARD: SpinLock<Keyboard<layouts::Us104Key, ScancodeSet1>> = 
+            SpinLock::new(Keyboard::new(layouts::Us104Key, ScancodeSet1, HandleControl::Ignore));
+    }
+
+    let mut keyboard = KEYBOARD.lock();
+    let mut port = Port::new(0x60);
+    let scancode: u8 = unsafe { port.read() };
+
+    if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
+        if let Some(key) = keyboard.process_keyevent(key_event) {
+            match key {
+                DecodedKey::Unicode(ch) => print!("{ch}"),
+                DecodedKey::RawKey(key) => print!("{key:?}"),
+            }
+        }
+    }
+
+    unsafe {
+        PICS.lock().notify_end_of_interrupt(InterruptIndex::Keyboard as u8);
+    }
+}
+
+extern "C" fn raw_timer_handler(_stack_frame: &InterruptStackFrame) {
+    print!(".");
+    serial_print!(".");
+    unsafe {
+        PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer as u8);
+    }
 }
 
 extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, error: ErrorCode) {
@@ -385,12 +423,6 @@ extern "C" fn raw_breakpoint_handler(stack_frame: &InterruptStackFrame) {
         stack_frame.instruction_pointer,
         stack_frame
     );
-}
-
-extern "C" fn raw_timer_handler(_stack_frame: &InterruptStackFrame) {
-    print!(".");
-    serial_print!(".");
-    PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer as u8);
 }
 
 extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame) {
