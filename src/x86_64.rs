@@ -201,19 +201,19 @@ pub fn is_interrupt_enabled() -> bool {
     rflags & INTERRUPT_FLAG != 0
 }
 
-// /// Safety:
-// /// * It's called in the begining of a raw interrupt handler.
-// #[inline(always)]
-// pub unsafe fn load_interrupt_stack_frame<'a>() -> &'a InterruptStackFrame {
-//     let stack_frame: *const InterruptStackFrame;
-//     unsafe {
-//         asm!(
-//             "mov {}, rsp",
-//             out(reg) stack_frame,
-//         );
-//         &*stack_frame
-//     }
-// }
+pub fn without_interrupts<F: FnOnce() -> R, R>(f: F) -> R {
+    // TODO: will it cause a race condition where interrupt state changed
+    // during the process?
+    let is_enabled = is_interrupt_enabled();
+    if is_enabled {
+        disable_interrupt();
+        let ret = f();
+        enable_interrupt();
+        ret
+    } else {
+        f()
+    }
+}
 
 /// Safety:
 /// * input is an valid tss

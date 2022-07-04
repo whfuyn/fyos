@@ -23,7 +23,7 @@ pub mod bit_field;
 
 pub fn init() {
     gdt::init();
-    interrupts::init_idt();
+    interrupts::init();
     unsafe {
         interrupts::PICS.lock().initialize();
     }

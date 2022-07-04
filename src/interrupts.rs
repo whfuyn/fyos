@@ -1,12 +1,17 @@
 pub mod idt;
 
-pub use idt::init_idt;
 pub use crate::pic::ChainedPics;
 
 use core::fmt;
 use core::marker::PhantomData;
 use crate::spinlock::SpinLock;
 use crate::x86_64::{self, VirtAddr};
+use crate::lazy_static;
+use crate::print;
+use crate::println;
+use crate::serial_print;
+use crate::serial_println;
+use idt::InterruptDescriptorTable;
 
 
 pub const PIC_1_OFFSET: u8 = 32;
@@ -99,6 +104,7 @@ impl<F: HandlerFn> RawHandler<F> {
         Self { handler, _phantom }
     }
 }
+
 
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
@@ -317,14 +323,186 @@ pub struct InterruptStackFrameValue {
     pub stack_segment: u64,
 }
 
-pub fn without_interrupts<F: FnOnce() -> R, R>(f: F) -> R {
-    let is_enabled = x86_64::is_interrupt_enabled();
-    if is_enabled {
-        x86_64::disable_interrupt();
-        let ret = f();
-        x86_64::enable_interrupt();
-        ret
-    } else {
-        f()
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum InterruptIndex {
+    Timer = PIC_1_OFFSET,
+    Keyboard,
+}
+
+lazy_static! {
+    static ref IDT: InterruptDescriptorTable = {
+        let mut idt = InterruptDescriptorTable::new();
+        // Both handler and raw handler should work.
+        idt.divide_error.set_raw_handler(raw_handler!(raw_divide_by_zero_handler));
+        idt.breakpoint.set_handler(breakpoint_handler);
+        idt.invalid_opcode.set_raw_handler(raw_handler!(raw_invalid_opcode_handler));
+        // Safety:
+        // * The stack index points to a valid stack in GDT.
+        // * It's not used by other interrupt handler.
+        unsafe {
+            idt.double_fault
+                .set_raw_handler(raw_handler_with_error_code!(raw_double_fault_handler -> !))
+                .set_stack_index(crate::gdt::DOUBLE_FAULT_IST_INDEX);
+        }
+        idt.general_protection_fault
+            .set_raw_handler(raw_handler_with_error_code!(raw_general_protection_fault_handler));
+        idt.page_fault
+            .set_raw_handler(raw_page_fault_handler!(raw_page_fault_handler));
+        idt[InterruptIndex::Timer as usize]
+            .set_raw_handler(raw_handler!(raw_timer_handler));
+        idt
+    };
+}
+
+pub fn init() {
+    IDT.load();
+}
+
+extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, error: ErrorCode) {
+    serial_println!(
+        "EXCEPTION: double fault with error code `{:#x}` at {:#x}\n{:#?}",
+        error,
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
+    loop {}
+}
+
+extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
+    serial_println!("Haoye! It's a breakpoint!");
+    serial_println!(
+        "At {:#x}\nStackFrame:\n{:#?}",
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
+}
+
+extern "C" fn raw_breakpoint_handler(stack_frame: &InterruptStackFrame) {
+    serial_println!("Haoye! It's a breakpoint!");
+    serial_println!(
+        "At {:#x}\nStackFrame:\n{:#?}",
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
+}
+
+extern "C" fn raw_timer_handler(_stack_frame: &InterruptStackFrame) {
+    print!(".");
+    serial_print!(".");
+    PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer as u8);
+}
+
+extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame) {
+    serial_println!("EXCEPTION: divide-by-zero");
+    serial_println!("{:#?}", stack_frame);
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
+extern "C" fn raw_invalid_opcode_handler(stack_frame: &InterruptStackFrame) {
+    serial_println!(
+        "EXCEPTION: invalid opcode at {:#x}\n{:#?}",
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
+extern "C" fn raw_double_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
+    panic!(
+        "EXCEPTION: double fault with error code `{:#x}` at {:#x}\n{:#?}",
+        error, stack_frame.instruction_pointer, stack_frame
+    );
+}
+
+extern "C" fn raw_general_protection_fault_handler(
+    stack_frame: &InterruptStackFrame,
+    error: ErrorCode,
+) {
+    serial_println!(
+        "EXCEPTION: general protection fault with error code `{:#x}` at {:#x}\n{:#?}",
+        error,
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
+extern "C" fn raw_page_fault_handler(stack_frame: &InterruptStackFrame, error: PageFaultErrorCode) {
+    serial_println!(
+        "EXCEPTION: page fault with error code `{:#x}` at {:#x}\n{:#?}",
+        error,
+        stack_frame.instruction_pointer,
+        stack_frame
+    );
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gdt;
+    use crate::serial_println;
+    use crate::x86_64;
+
+    #[test_case]
+    fn test_breakpoint_handler() {
+        init();
+        serial_println!("go!");
+        x86_64::int3();
+        serial_println!("haoye!");
+    }
+
+    // #[test_case]
+    // fn test_divid_by_zero_handler() {
+    //     init_idt();
+    //     serial_println!("go!");
+    //     x86_64::divide_by_zero();
+    //     serial_println!("No haoye!");
+    // }
+
+    // #[test_case]
+    // fn test_invalid_opcode_handler() {
+    //     init_idt();
+    //     serial_println!("go!");
+    //     x86_64::ud2();
+    //     serial_println!("No haoye!");
+    // }
+
+    // #[test_case]
+    // fn test_page_fault_handler() {
+    //     gdt::init();
+    //     init_idt();
+    //     serial_println!("go!");
+    //     unsafe {
+    //         *(0xdeadbeef as *mut u8) = 42;
+    //     }
+    //     serial_println!("No haoye!");
+    // }
+
+    // #[test_case]
+    // fn test_double_fault_handler() {
+    //     gdt::init();
+    //     init_idt();
+    //     divide_by_zero();
+    //     serial_println!("No haoye!");
+    // }
+
+    #[test_case]
+    fn test_timer_handler() {
+        crate::init();
+        serial_println!("start");
+        loop {
+            serial_print!("*");
+            for _ in 0..10000{}
+        }
     }
 }

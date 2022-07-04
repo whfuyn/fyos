@@ -246,7 +246,7 @@ macro_rules! println {
 #[doc(hidden)]
 pub fn _print(args: core::fmt::Arguments) {
     use core::fmt::Write;
-    crate::interrupts::without_interrupts(
+    crate::x86_64::without_interrupts(
         || SCREEN.lock().write_fmt(args).unwrap()
     );
 }
