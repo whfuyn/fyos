@@ -5,8 +5,6 @@ use core::ops::DerefMut;
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering;
 
-// We actually don't need this since our current kernel
-// is single-threaded.
 pub struct SpinLock<T: ?Sized> {
     is_locked: AtomicBool,
     value: UnsafeCell<T>,

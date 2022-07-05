@@ -168,6 +168,23 @@ pub fn ud2() {
 }
 
 #[inline]
+pub fn hlt() {
+    unsafe {
+        asm!(
+            "hlt",
+            options(nomem, nostack, preserves_flags),
+        )
+    }
+}
+
+#[inline]
+pub fn hlt_loop() -> ! {
+    loop {
+        hlt();
+    }
+}
+
+#[inline]
 pub fn enable_interrupt() {
     unsafe {
         asm!(

@@ -5,13 +5,12 @@
 #![reexport_test_harness_main = "test_main"]
 
 use fyos::println;
+use fyos::x86_64;
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     test_main();
-    loop {
-        core::hint::spin_loop();
-    }
+    x86_64::hlt_loop();
 }
 
 #[panic_handler]

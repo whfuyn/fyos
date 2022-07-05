@@ -404,7 +404,7 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame,
         stack_frame.instruction_pointer,
         stack_frame
     );
-    loop {}
+    x86_64::hlt_loop();
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
@@ -428,9 +428,7 @@ extern "C" fn raw_breakpoint_handler(stack_frame: &InterruptStackFrame) {
 extern "C" fn raw_divide_by_zero_handler(stack_frame: &InterruptStackFrame) {
     serial_println!("EXCEPTION: divide-by-zero");
     serial_println!("{:#?}", stack_frame);
-    loop {
-        core::hint::spin_loop();
-    }
+    x86_64::hlt_loop();
 }
 
 extern "C" fn raw_invalid_opcode_handler(stack_frame: &InterruptStackFrame) {
@@ -439,9 +437,7 @@ extern "C" fn raw_invalid_opcode_handler(stack_frame: &InterruptStackFrame) {
         stack_frame.instruction_pointer,
         stack_frame
     );
-    loop {
-        core::hint::spin_loop();
-    }
+    x86_64::hlt_loop();
 }
 
 extern "C" fn raw_double_fault_handler(stack_frame: &InterruptStackFrame, error: ErrorCode) -> ! {
@@ -461,9 +457,7 @@ extern "C" fn raw_general_protection_fault_handler(
         stack_frame.instruction_pointer,
         stack_frame
     );
-    loop {
-        core::hint::spin_loop();
-    }
+    x86_64::hlt_loop();
 }
 
 extern "C" fn raw_page_fault_handler(stack_frame: &InterruptStackFrame, error: PageFaultErrorCode) {
@@ -473,9 +467,7 @@ extern "C" fn raw_page_fault_handler(stack_frame: &InterruptStackFrame, error: P
         stack_frame.instruction_pointer,
         stack_frame
     );
-    loop {
-        core::hint::spin_loop();
-    }
+    x86_64::hlt_loop();
 }
 
 #[cfg(test)]
